@@ -20,7 +20,7 @@ app.use(cookieParser());
 
 // CORS configuration
 app.use(cors({
-    origin: process.env.CLIENT_URL || 'https://hridved-opal.vercel.app/',
+    origin: "*",
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
     allowedHeaders: ['Content-Type', 'Authorization'],
