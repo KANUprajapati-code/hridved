@@ -6,7 +6,7 @@ import {
     formatUserResponse,
 } from '../utils/oauthService.js';
 
-// Generate JWT Helper
+// ✅ Generate JWT (FIXED FOR VERCEL + CROSS DOMAIN)
 const generateToken = (res, userId) => {
     const token = jwt.sign({ userId }, process.env.JWT_SECRET, {
         expiresIn: '30d',
@@ -14,11 +14,13 @@ const generateToken = (res, userId) => {
 
     res.cookie('jwt', token, {
         httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'strict',
+        secure: true,          // Required for HTTPS (Vercel)
+        sameSite: 'none',      // Required for cross-domain
         maxAge: 30 * 24 * 60 * 60 * 1000,
     });
 };
+
+// ================= GOOGLE LOGIN =================
 
 // @desc    Google OAuth callback
 // @route   POST /api/auth/google
@@ -31,29 +33,34 @@ export const googleAuth = async (req, res) => {
             return res.status(400).json({ message: 'Access token or ID token is required' });
         }
 
-        // Get user info from Google
         let googleUser;
+
         try {
             googleUser = await getGoogleUserInfo(accessToken || idToken);
         } catch (error) {
             return res.status(401).json({ message: 'Failed to verify Google token' });
         }
 
-        // Get or create user
         const user = await getOrCreateOAuthUser('google', googleUser);
 
-        // Generate JWT
+        // ✅ Generate JWT Cookie
         generateToken(res, user._id);
 
         res.status(200).json({
             message: 'Logged in successfully',
             user: formatUserResponse(user),
         });
+
     } catch (error) {
         console.error('Google auth error:', error.message);
-        res.status(500).json({ message: 'Google authentication failed', error: error.message });
+        res.status(500).json({
+            message: 'Google authentication failed',
+            error: error.message
+        });
     }
 };
+
+// ================= FACEBOOK LOGIN =================
 
 // @desc    Facebook OAuth callback
 // @route   POST /api/auth/facebook
@@ -66,15 +73,14 @@ export const facebookAuth = async (req, res) => {
             return res.status(400).json({ message: 'Access token is required' });
         }
 
-        // Verify token and get user info from Facebook
         let facebookUser;
+
         try {
             facebookUser = await verifyFacebookToken(accessToken);
         } catch (error) {
             return res.status(401).json({ message: 'Failed to verify Facebook token' });
         }
 
-        // Get or create user
         const user = await getOrCreateOAuthUser('facebook', {
             id: facebookUser.id,
             email: facebookUser.email,
@@ -82,13 +88,14 @@ export const facebookAuth = async (req, res) => {
             picture: facebookUser.picture,
         });
 
-        // Generate JWT
+        // ✅ Generate JWT Cookie
         generateToken(res, user._id);
 
         res.status(200).json({
             message: 'Logged in successfully',
             user: formatUserResponse(user),
         });
+
     } catch (error) {
         console.error('Facebook auth error:', error.message);
         res.status(500).json({
@@ -97,6 +104,8 @@ export const facebookAuth = async (req, res) => {
         });
     }
 };
+
+// ================= AUTH STATUS =================
 
 // @desc    Get auth status
 // @route   GET /api/auth/status
