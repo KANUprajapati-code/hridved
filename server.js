@@ -40,8 +40,6 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization'],
 }));
 
-// ✅ Preflight Fix
-app.options('*', cors());
 
 /* =========================
    ROUTES
