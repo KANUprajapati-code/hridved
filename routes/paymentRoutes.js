@@ -1,6 +1,8 @@
 import express from 'express';
 import Stripe from 'stripe';
 import dotenv from 'dotenv';
+import { createPhonePePayment, checkPhonePeStatus } from '../controllers/paymentController.js';
+import { protect } from '../middleware/authMiddleware.js';
 
 dotenv.config();
 
@@ -38,5 +40,15 @@ router.post('/create-payment-intent', async (req, res) => {
         res.status(500).json({ error: error.message });
     }
 });
+
+// @desc    Create PhonePe Payment
+// @route   POST /api/payment/create
+// @access  Private
+router.post('/create', protect, createPhonePePayment);
+
+// @desc    Check PhonePe Payment Status (Callback)
+// @route   POST /api/payment/status/:merchantTransactionId
+// @access  Public
+router.post('/status/:merchantTransactionId', checkPhonePeStatus);
 
 export default router;
