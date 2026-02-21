@@ -66,6 +66,7 @@ import oauthRoutes from './routes/oauthRoutes.js';
 import adminRoutes from './routes/adminRoutes.js';
 import aboutRoutes from './routes/aboutRoutes.js';
 import doctorPaymentRoutes from './routes/doctorPaymentRoutes.js';
+import couponRoutes from './routes/couponRoutes.js';
 import { notFound, errorHandler } from './middleware/errorMiddleware.js';
 
 app.use('/api/users', userRoutes);
@@ -89,6 +90,7 @@ app.use('/api/checkout', checkoutRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/doctor-bookings', doctorPaymentRoutes);
 app.use('/api/about', aboutRoutes);
+app.use('/api/coupons', couponRoutes);
 
 import path from 'path';
 import { fileURLToPath } from 'url';
