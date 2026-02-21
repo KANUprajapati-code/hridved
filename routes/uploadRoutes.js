@@ -23,8 +23,10 @@ const upload = multer({ storage });
 
 router.post('/', upload.single('image'), (req, res) => {
     if (req.file) {
+        console.log('Upload success:', req.file.path);
         res.send(req.file.path);
     } else {
+        console.error('Upload failed: No file received');
         res.status(400).send('No image uploaded');
     }
 });

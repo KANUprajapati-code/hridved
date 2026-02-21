@@ -24,7 +24,8 @@ app.use(cookieParser());
 const allowedOrigins = [
   "http://localhost:5173",
   "https://www.hridved.in",
-  "https://hridved.in"
+  "https://hridved.in",
+  "https://hridved-opal.vercel.app"
 ];
 
 app.use(cors({
@@ -98,7 +99,7 @@ const __dirname = path.dirname(__filename);
 app.use('/uploads', express.static(path.join(__dirname, '/uploads')));
 
 app.get('/', (req, res) => {
-    res.send('API is running...');
+  res.send('API is running...');
 });
 
 // Error Handling
@@ -107,13 +108,13 @@ app.use(errorHandler);
 
 // Start Server
 const startServer = async () => {
-    try {
-        await connectDB();
-        app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
-    } catch (error) {
-        console.error(`Error: ${error.message}`);
-        process.exit(1);
-    }
+  try {
+    await connectDB();
+    app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+  } catch (error) {
+    console.error(`Error: ${error.message}`);
+    process.exit(1);
+  }
 };
 
 startServer();
