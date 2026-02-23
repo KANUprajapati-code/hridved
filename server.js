@@ -23,6 +23,7 @@ app.use(cookieParser());
 
 const allowedOrigins = [
   "http://localhost:5173",
+  "http://localhost:5174",
   "https://www.hridved.in",
   "https://hridved.in",
   "https://hridved-opal.vercel.app"
@@ -44,8 +45,16 @@ app.use(cors({
     }
   },
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'x-auth-token'],
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: [
+    'Content-Type',
+    'Authorization',
+    'x-auth-token',
+    'Origin',
+    'X-Requested-With',
+    'Accept'
+  ],
+  exposedHeaders: ['set-cookie'],
 }));
 
 
