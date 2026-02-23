@@ -21,6 +21,10 @@ const storage = new CloudinaryStorage({
 
 const upload = multer({ storage });
 
+router.get('/', (req, res) => {
+    res.send('Upload route is working');
+});
+
 router.post('/', upload.single('image'), (req, res) => {
     if (req.file) {
         console.log('Upload success:', req.file.path);
