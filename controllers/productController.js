@@ -94,6 +94,9 @@ const createProduct = async (req, res) => {
         countInStock: 0,
         numReviews: 0,
         description: 'Sample description',
+        brand: 'Sample brand',
+        benefits: 'Sample benefits',
+        howToUse: 'Sample how to use',
     });
 
     const createdProduct = await product.save();
@@ -113,6 +116,9 @@ const updateProduct = async (req, res) => {
         category,
         countInStock,
         isBestseller,
+        brand,
+        benefits,
+        howToUse,
     } = req.body;
 
     const product = await Product.findById(req.params.id);
@@ -126,6 +132,9 @@ const updateProduct = async (req, res) => {
         product.category = category;
         product.countInStock = countInStock;
         product.isBestseller = isBestseller;
+        product.brand = brand || product.brand;
+        product.benefits = benefits || product.benefits;
+        product.howToUse = howToUse || product.howToUse;
 
         const updatedProduct = await product.save();
         res.json(updatedProduct);
