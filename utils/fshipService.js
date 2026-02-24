@@ -33,12 +33,12 @@ export const createFshipOrder = async (order) => {
 
     const payload = {
         order_id: order._id?.toString?.() || String(order._id),
-        consignee_name: `${order.shippingAddress.firstName} ${order.shippingAddress.lastName}`,
-        consignee_phone: order.shippingAddress.phone,
-        consignee_address: order.shippingAddress.address,
+        consignee_name: order.shippingAddress.fullName,
+        consignee_phone: order.shippingAddress.mobileNumber,
+        consignee_address: `${order.shippingAddress.houseNumber} ${order.shippingAddress.landmark || ''}`.trim(),
         consignee_city: order.shippingAddress.city,
         consignee_state: order.shippingAddress.state,
-        consignee_pincode: order.shippingAddress.postalCode,
+        consignee_pincode: order.shippingAddress.pincode,
         payment_mode: order.paymentMethod === 'COD' ? 'COD' : 'Prepaid',
         cod_amount: order.paymentMethod === 'COD' ? order.totalPrice : 0,
         products: order.orderItems.map((item) => ({

@@ -109,7 +109,17 @@ export const trackShipment = async (req, res) => {
         }
 
         const data = await trackFshipShipment(order.trackingId);
-        res.json(data);
+
+        // Fship often returns data nested by AWB number
+        // data.data[trackingId] or similar. Let's flatten it for the frontend.
+        const trackingInfo = data.data?.[order.trackingId] || data.data || data;
+
+        res.json({
+            ...trackingInfo,
+            courier_name: order.courierName || trackingInfo.courier_name,
+            awb_number: order.trackingId,
+            status: data.status || 'success'
+        });
 
     } catch (error) {
         res.status(500).json({ message: 'Tracking failed', error: error.message });
