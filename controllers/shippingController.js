@@ -13,13 +13,13 @@ export const checkServiceability = async (req, res) => {
         {
             type: 'Standard',
             days: '3-5',
-            charge: 40,
+            charge: 0, // Set to 0 for testing
             description: 'Standard Delivery',
         },
         {
             type: 'Express',
             days: '1-2',
-            charge: 100,
+            charge: 0, // Set to 0 for testing
             description: 'Express Delivery',
         }
     ];
@@ -36,13 +36,13 @@ export const checkServiceability = async (req, res) => {
                 {
                     type: 'Standard',
                     days: '3-5',
-                    charge: Math.min(40, Math.round(fshipData?.standard_charge || 40)),
+                    charge: 0, // Set to 0 for testing
                     description: 'Standard Delivery',
                 },
                 {
                     type: 'Express',
                     days: '1-2',
-                    charge: Math.min(100, Math.round(fshipData?.express_charge || 100)),
+                    charge: 0, // Set to 0 for testing
                     description: 'Express Delivery',
                 }
             ];

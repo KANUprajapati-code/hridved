@@ -2,7 +2,7 @@ import axios from 'axios';
 import dotenv from 'dotenv';
 dotenv.config();
 
-const FSHIP_BASE_URL = (process.env.FSHIP_BASE_URL || 'https://api.fship.in/v1').replace(/\/+$/, '');
+const FSHIP_BASE_URL = (process.env.FSHIP_BASE_URL || 'https://capi.fship.in/v1').replace(/\/+$/, '');
 const FSHIP_API_KEY = process.env.FSHIP_API_KEY || '';
 
 const fshipClient = axios.create({
