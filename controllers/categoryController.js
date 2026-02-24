@@ -52,4 +52,40 @@ const deleteCategory = async (req, res) => {
     }
 };
 
-export { getCategories, createCategory, deleteCategory };
+// @desc    Get category by ID
+// @route   GET /api/categories/:id
+// @access  Private/Admin
+const getCategoryById = async (req, res) => {
+    const category = await Category.findById(req.params.id);
+
+    if (category) {
+        res.json(category);
+    } else {
+        res.status(404);
+        throw new Error('Category not found');
+    }
+};
+
+// @desc    Update a category
+// @route   PUT /api/categories/:id
+// @access  Private/Admin
+const updateCategory = async (req, res) => {
+    const { name, slug, image, description } = req.body;
+
+    const category = await Category.findById(req.params.id);
+
+    if (category) {
+        category.name = name || category.name;
+        category.slug = slug || category.slug;
+        category.image = image || category.image;
+        category.description = description || category.description;
+
+        const updatedCategory = await category.save();
+        res.json(updatedCategory);
+    } else {
+        res.status(404);
+        throw new Error('Category not found');
+    }
+};
+
+export { getCategories, createCategory, deleteCategory, getCategoryById, updateCategory };
