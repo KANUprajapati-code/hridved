@@ -48,20 +48,18 @@ router.post('/verify', async (req, res) => {
 
     if (expectedSignature === razorpay_signature) {
         // Update Order
-        const order = await Order.findById(orderId);
+        const order = await Order.findById(orderId).populate('user', 'email name');
         if (order) {
             order.isPaid = true;
             order.paidAt = Date.now();
             order.paymentResult = {
                 id: razorpay_payment_id,
                 status: 'succeeded',
-                update_time: Date.now(),
-                email_address: order.user.email, // Assuming user email is available in order populate
+                update_time: Date.now().toString(),
+                email_address: order.user ? order.user.email : 'N/A',
             };
             order.razorpayOrderId = razorpay_order_id;
             order.razorpayPaymentId = razorpay_payment_id;
-            order.razorpaySignature = razorpay_signature;
-
             order.razorpaySignature = razorpay_signature;
 
             await order.save();
