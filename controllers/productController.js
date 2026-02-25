@@ -19,7 +19,8 @@ const getProducts = async (req, res) => {
     } : {};
 
     if (req.query.category) {
-        keyword.category = req.query.category;
+        const categories = req.query.category.split(',');
+        keyword.category = { $in: categories };
     }
 
     // Price filtering
@@ -41,6 +42,8 @@ const getProducts = async (req, res) => {
         sort = { price: -1 };
     } else if (req.query.sort === 'newest') {
         sort = { createdAt: -1 };
+    } else if (req.query.sort === 'rating') {
+        sort = { rating: -1 };
     }
 
     const count = await Product.countDocuments({ ...keyword });
@@ -49,7 +52,7 @@ const getProducts = async (req, res) => {
         .limit(pageSize)
         .skip(pageSize * (page - 1));
 
-    res.json({ products, page, pages: Math.ceil(count / pageSize) });
+    res.json({ products, page, pages: Math.ceil(count / pageSize), count });
 };
 
 // @desc    Fetch single product
