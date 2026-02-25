@@ -251,4 +251,11 @@ router.post('/webhook', async (req, res) => {
     }
 });
 
+// @desc    Get Razorpay Key ID
+// @route   GET /api/razorpay/key
+// @access  Public
+router.get('/key', (req, res) => {
+    res.send(process.env.RAZORPAY_KEY_ID);
+});
+
 export default router;
