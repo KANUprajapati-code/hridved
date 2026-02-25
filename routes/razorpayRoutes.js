@@ -39,6 +39,28 @@ router.post('/order', async (req, res) => {
     }
 });
 
+// @desc    Pre-save Razorpay Order ID to DB Order (called before payment to enable webhook lookup)
+// @route   PATCH /api/razorpay/pre-save/:orderId
+// @access  Private
+router.patch('/pre-save/:orderId', async (req, res) => {
+    const { orderId } = req.params;
+    const { razorpayOrderId } = req.body;
+
+    try {
+        const order = await Order.findById(orderId);
+        if (!order) {
+            return res.status(404).json({ message: 'Order not found' });
+        }
+        order.razorpayOrderId = razorpayOrderId;
+        await order.save();
+        console.log(`Pre-saved razorpayOrderId ${razorpayOrderId} for order ${orderId}`);
+        res.json({ message: 'Saved' });
+    } catch (error) {
+        console.error('Pre-save Error:', error);
+        res.status(500).json({ message: error.message });
+    }
+});
+
 // @desc    Verify Razorpay Payment
 // @route   POST /api/razorpay/verify
 // @access  Private
