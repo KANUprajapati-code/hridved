@@ -2,15 +2,15 @@ import axios from 'axios';
 import dotenv from 'dotenv';
 dotenv.config();
 
-const FSHIP_BASE_URL = (process.env.FSHIP_BASE_URL || 'https://capi.fship.in/v1').replace(/\/+$/, '');
-const FSHIP_API_KEY = process.env.FSHIP_API_KEY || '';
+const FSHIP_BASE_URL = (process.env.FSHIP_BASE_URL || 'https://capi-qc.fship.in').replace(/\/+$/, '');
+const FSHIP_KEY = process.env.FSHIP_KEY || process.env.FSHIP_API_KEY || '';
 
 const fshipClient = axios.create({
     baseURL: FSHIP_BASE_URL,
     timeout: 15000,
     headers: {
         'Content-Type': 'application/json',
-        ...(FSHIP_API_KEY ? { 'signature': FSHIP_API_KEY } : {}),
+        'signature': FSHIP_KEY,
     },
 });
 
@@ -27,62 +27,96 @@ const formatAxiosError = (error) => ({
     data: error.response?.data,
 });
 
-export const createFshipOrder = async (order) => {
-    if (!order) throw new Error('Order object is required');
-    if (order.shipmentId) return { message: 'Shipment already exists', already: true };
-
-    const payload = {
-        order_id: order._id?.toString?.() || String(order._id),
-        consignee_name: order.shippingAddress.fullName,
-        consignee_phone: order.shippingAddress.mobileNumber,
-        consignee_address: `${order.shippingAddress.houseNumber} ${order.shippingAddress.landmark || ''}`.trim(),
-        consignee_city: order.shippingAddress.city,
-        consignee_state: order.shippingAddress.state,
-        consignee_pincode: order.shippingAddress.pincode,
-        payment_mode: order.paymentMethod === 'COD' ? 'COD' : 'Prepaid',
-        cod_amount: order.paymentMethod === 'COD' ? order.totalPrice : 0,
-        products: order.orderItems.map((item) => ({
-            name: item.name,
-            qty: item.qty,
-            price: item.price,
-            sku: item.product ? item.product.toString() : (item._id?.toString?.() || ''),
-        })),
-        weight: 0.5,
-    };
-
+/**
+ * 1. Create Forward Order
+ * @param {Object} orderData 
+ */
+export const createFshipForwardOrder = async (orderData) => {
     try {
-        const response = await fshipClient.post('/orders/create', payload);
+        const response = await fshipClient.post('/api/createforwardorder', orderData);
         return response.data;
     } catch (error) {
-        const err = formatAxiosError(error);
-        console.error('Fship create order error:', err);
-        throw err;
+        throw formatAxiosError(error);
     }
 };
 
-export const checkFshipServiceability = async (pincode, weight = 0.5, cod = 0) => {
+/**
+ * 2. Shipment Summary (Latest Status)
+ * @param {string} waybill 
+ */
+export const getFshipShipmentSummary = async (waybill) => {
     try {
-        const response = await fshipClient.post('/courier/serviceability', { pincode, weight, cod });
+        const response = await fshipClient.post('/api/shipmentsummary', { waybill });
         return response.data;
     } catch (error) {
-        const err = formatAxiosError(error);
-        console.error('Fship serviceability error:', err);
-        if (error.response?.data) {
-            console.error('Fship serviceability error data:', JSON.stringify(error.response.data, null, 2));
-        }
-        throw err;
+        throw formatAxiosError(error);
     }
 };
 
-export const trackFshipShipment = async (trackingIds) => {
+/**
+ * 3. Tracking History (Full Timeline)
+ * @param {string} waybill 
+ */
+export const getFshipTrackingHistory = async (waybill) => {
     try {
-        // trackingIds can be a single ID or comma-separated
-        const response = await fshipClient.post('/orders/tracking', { awb_number: trackingIds });
+        const response = await fshipClient.post('/api/trackinghistory', { waybill });
         return response.data;
     } catch (error) {
-        const err = formatAxiosError(error);
-        console.error('Fship tracking error:', err);
-        throw err;
+        throw formatAxiosError(error);
+    }
+};
+
+/**
+ * 4. Register Pickup
+ * @param {Array<string>} waybills 
+ */
+export const registerFshipPickup = async (waybills) => {
+    try {
+        const response = await fshipClient.post('/api/registerpickup', { waybills });
+        return response.data;
+    } catch (error) {
+        throw formatAxiosError(error);
+    }
+};
+
+/**
+ * 5. Shipping Label by Pickup ID
+ * @param {Array<number>} pickupOrderId 
+ */
+export const getFshipShippingLabelByPickupId = async (pickupOrderId) => {
+    try {
+        const response = await fshipClient.post('/api/shippinglabelbypickupid', { pickupOrderId });
+        return response.data;
+    } catch (error) {
+        throw formatAxiosError(error);
+    }
+};
+
+/**
+ * 6. Create Reverse Order
+ * @param {Object} reverseOrderData 
+ */
+export const createFshipReverseOrder = async (reverseOrderData) => {
+    try {
+        const response = await fshipClient.post('/api/createreverseorder', reverseOrderData);
+        return response.data;
+    } catch (error) {
+        throw formatAxiosError(error);
+    }
+};
+
+/**
+ * Legacy/Utility: Check Serviceability
+ */
+export const checkFshipServiceability = async (sourcePincode, destinationPincode) => {
+    try {
+        const response = await fshipClient.post('/api/pincodeserviceability', {
+            source_Pincode: sourcePincode,
+            destination_Pincode: destinationPincode
+        });
+        return response.data;
+    } catch (error) {
+        throw formatAxiosError(error);
     }
 };
 

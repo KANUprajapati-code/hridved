@@ -124,10 +124,13 @@ app.get('/', (req, res) => {
 app.use(notFound);
 app.use(errorHandler);
 
+import { initTrackingCron } from './scripts/trackingCron.js';
+
 // Start Server
 const startServer = async () => {
   try {
     await connectDB();
+    initTrackingCron(); // Start automated tracking updates
     app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
   } catch (error) {
     console.error(`Error: ${error.message}`);

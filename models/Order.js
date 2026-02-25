@@ -46,11 +46,30 @@ const orderSchema = mongoose.Schema({
     razorpayOrderId: { type: String },
     razorpayPaymentId: { type: String },
     razorpaySignature: { type: String },
-    // Fship Fields
-    shipmentId: { type: String },
-    trackingId: { type: String },
+    // Shipping Integration Fields
+    shippingProvider: { type: String, enum: ['Fship', 'Vamaship'], default: 'Fship' },
+    waybill: { type: String }, // Fship waybill
+    apiOrderId: { type: String }, // Fship order id
+    pickupOrderId: { type: String }, // Fship pickup id
+    shippingLabelUrl: { type: String },
+    trackingStatus: { type: String },
+    trackingHistory: [
+        {
+            dateAndTime: { type: Date },
+            status: { type: String },
+            remark: { type: String },
+            location: { type: String },
+        }
+    ],
+    shippingStatus: {
+        type: String,
+        enum: ['Pending', 'Processing', 'Shipped', 'Delivered', 'RTO', 'Shipping Pending'],
+        default: 'Pending'
+    },
+    isReverse: { type: Boolean, default: false },
+    shipmentId: { type: String }, // Legacy/Generic
+    trackingId: { type: String }, // Generic tracker
     courierName: { type: String },
-    shippingStatus: { type: String, default: 'Processing' }, // Processing, Shipped, Delivered
     estimatedDelivery: { type: Date },
     deliveryOption: {
         type: String,

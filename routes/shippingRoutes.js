@@ -1,18 +1,30 @@
 import express from 'express';
-import { checkServiceability, createShipment, trackShipment, testFshipApi } from '../controllers/shippingController.js';
+import {
+    checkServiceability,
+    createShipment,
+    trackShipment,
+    getTrackingHistory,
+    registerPickup,
+    getLabels,
+    createReverseOrder,
+    testFshipApi
+} from '../controllers/shippingController.js';
 import { protect, admin } from '../middleware/authMiddleware.js';
 
 const router = express.Router();
 
-// Health check for fship API
+// Health check
 router.get('/health', testFshipApi);
 
-// Public route for checking serviceability and getting shipping rates
+// Public/User routes
 router.post('/serviceability', checkServiceability);
+router.get('/track/:waybill', trackShipment);
+router.get('/tracking-history/:waybill', getTrackingHistory);
 
-// Protected routes
-router.post('/create-shipment', protect, admin, createShipment); // Typically admin triggers manually or webhook automatic
-router.get('/track/:orderId', protect, trackShipment);
+// Protected Admin routes
+router.post('/create-shipment', protect, admin, createShipment);
+router.post('/register-pickup', protect, admin, registerPickup);
+router.post('/labels', protect, admin, getLabels);
+router.post('/reverse-order', protect, admin, createReverseOrder);
 
-// Trigger restart: 1234
 export default router;

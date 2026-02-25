@@ -1,73 +1,33 @@
-import { createFshipOrder, checkFshipServiceability, trackFshipShipment } from '../utils/fshipService.js';
-import fshipClient from '../utils/fshipService.js';
+import {
+    createFshipForwardOrder,
+    getFshipShipmentSummary,
+    getFshipTrackingHistory,
+    registerFshipPickup,
+    getFshipShippingLabelByPickupId,
+    createFshipReverseOrder,
+    checkFshipServiceability as checkFshipServiceabilityService
+} from '../utils/fshipService.js';
 import Order from '../models/Order.js';
 
-// @desc    Check Pincode Serviceability and Get Shipping Rates
+/**
+ * Helper to generate order ID: ORD + timestamp
+ */
+const generateOrderId = () => `ORD${Date.now()}`;
+
+// @desc    Check Pincode Serviceability
 // @route   POST /api/shipping/serviceability
 // @access  Public
 export const checkServiceability = async (req, res) => {
-    const { pincode, weight = 0.5, cod = 0 } = req.body;
-
-    // Default Shipping Options (Fallback)
-    const defaultShippingOptions = [
-        {
-            type: 'Standard',
-            days: '3-5',
-            charge: 0, // Set to 0 for testing
-            description: 'Standard Delivery',
-        },
-        {
-            type: 'Express',
-            days: '1-2',
-            charge: 0, // Set to 0 for testing
-            description: 'Express Delivery',
-        }
-    ];
-
+    const { pincode, sourcePincode = '380001' } = req.body;
     try {
-        // Check if pincode is serviceable via FShip
-        const fshipData = await checkFshipServiceability(pincode, weight, cod);
-
-        // If Fship returns valid keys, use them, otherwise check serviceable flag
-        // Some APIs might return success but saying "not serviceable"
-
-        if (fshipData && fshipData.serviceable !== false) {
-            const shippingOptions = [
-                {
-                    type: 'Standard',
-                    days: '3-5',
-                    charge: 0, // Set to 0 for testing
-                    description: 'Standard Delivery',
-                },
-                {
-                    type: 'Express',
-                    days: '1-2',
-                    charge: 0, // Set to 0 for testing
-                    description: 'Express Delivery',
-                }
-            ];
-
-            return res.json({
-                serviceable: true,
-                shippingOptions: shippingOptions,
-                pincode: pincode,
-            });
-        }
+        const data = await checkFshipServiceabilityService(sourcePincode, pincode);
+        res.json(data);
     } catch (error) {
-        console.error('Fship Check Failed (Using Fallback):', error.message);
-        // Fallback to default options on error, don't crash
+        res.status(error.status || 500).json({ message: error.message, details: error.data });
     }
-
-    // Return default options if Fship failed or not serviceable (could add flag to UI if needed)
-    res.json({
-        serviceable: true, // Allow order anyway with default shipping
-        shippingOptions: defaultShippingOptions,
-        pincode: pincode,
-        warning: 'Standard shipping rates applied'
-    });
 };
 
-// @desc    Create Shipment (Manual Trigger)
+// @desc    Create Fship Shipment (Manual or Auto)
 // @route   POST /api/shipping/create-shipment
 // @access  Private/Admin
 export const createShipment = async (req, res) => {
@@ -76,117 +36,198 @@ export const createShipment = async (req, res) => {
     try {
         const order = await Order.findById(orderId).populate('user', 'name email');
         if (!order) return res.status(404).json({ message: 'Order not found' });
-        if (order.shipmentId) return res.status(400).json({ message: 'Shipment already created' });
+        if (order.waybill) return res.status(400).json({ message: 'Shipment already created with waybill: ' + order.waybill });
 
-        const shipmentData = await createFshipOrder(order);
+        // Prepare Fship Payload
+        const payload = {
+            customer_Name: order.shippingAddress.fullName,
+            customer_Mobile: order.shippingAddress.mobileNumber,
+            customer_Emailid: order.user?.email || 'customer@example.com',
+            customer_Address: order.shippingAddress.houseNumber,
+            landMark: order.shippingAddress.landmark || '',
+            customer_Address_Type: order.shippingAddress.addressType || 'Home',
+            customer_PinCode: order.shippingAddress.pincode,
+            customer_City: order.shippingAddress.city,
+            orderId: order.orderId || generateOrderId(),
+            payment_Mode: order.paymentMethod === 'COD' ? 1 : 2, // 1=COD, 2=PREPAID
+            express_Type: order.deliveryOption === 'Express' ? 'air' : 'surface',
+            order_Amount: order.totalPrice,
+            total_Amount: order.totalPrice,
+            cod_Amount: order.paymentMethod === 'COD' ? order.totalPrice : 0,
+            shipment_Weight: 0.5,
+            shipment_Length: 10,
+            shipment_Width: 10,
+            shipment_Height: 10,
+            pick_Address_ID: 0, // Should be configured address ID
+            return_Address_ID: 0,
+            products: order.orderItems.map(item => ({
+                productName: item.name,
+                unitPrice: item.price,
+                quantity: item.qty,
+                sku: String(item.product)
+            }))
+        };
 
-        if (shipmentData && shipmentData.success) {
-            order.shipmentId = shipmentData.shipment_id;
-            order.trackingId = shipmentData.awb_number;
-            order.courierName = shipmentData.courier_name;
+        const result = await createFshipForwardOrder(payload);
+
+        if (result && result.status === true) {
+            order.waybill = result.waybill;
+            order.apiOrderId = result.apiorderid;
             order.shippingStatus = 'Shipped';
+            order.shippingProvider = 'Fship';
             await order.save();
-            res.json({ message: 'Shipment Created', shipment: shipmentData });
+            return res.json({ message: 'Shipment Created Successfully', waybill: result.waybill, apiOrderId: result.apiorderid });
         } else {
-            res.status(400).json({ message: 'Failed to create shipment', details: shipmentData });
+            order.shippingStatus = 'Shipping Pending';
+            await order.save();
+            return res.status(400).json({ message: 'Fship API failed to create order', details: result });
         }
 
     } catch (error) {
-        res.status(500).json({ message: 'Shipment creation failed', error: error.message });
+        console.error('Create Shipment Error:', error);
+        res.status(500).json({ message: 'Shipment creation failed', error: error.message, details: error.data });
     }
 };
 
-// @desc    Track Shipment
-// @route   GET /api/shipping/track/:orderId
-// @access  Private
-export const trackShipment = async (req, res) => {
-    const { orderId } = req.params;
-
+// @desc    Register Pickup
+// @route   POST /api/shipping/register-pickup
+// @access  Private/Admin
+export const registerPickup = async (req, res) => {
+    const { waybills } = req.body;
     try {
-        const order = await Order.findById(orderId);
-        if (!order || !order.trackingId) {
-            return res.status(404).json({ message: 'Order or Tracking ID not found' });
+        const result = await registerFshipPickup(waybills);
+        if (result && result.status === true) {
+            // Update orders with pickupOrderId
+            const pickupData = result.apipickuporderids?.[0];
+            if (pickupData) {
+                await Order.updateMany(
+                    { waybill: { $in: pickupData.waybills } },
+                    { $set: { pickupOrderId: pickupData.pickupOrderId } }
+                );
+            }
+            res.json(result);
+        } else {
+            res.status(400).json({ message: 'Pickup registration failed', details: result });
         }
-
-        const data = await trackFshipShipment(order.trackingId);
-
-        // Fship often returns data nested by AWB number
-        // data.data[trackingId] or similar. Let's flatten it for the frontend.
-        const trackingInfo = data.data?.[order.trackingId] || data.data || data;
-
-        res.json({
-            ...trackingInfo,
-            courier_name: order.courierName || trackingInfo.courier_name,
-            awb_number: order.trackingId,
-            status: data.status || 'success'
-        });
-
     } catch (error) {
-        res.status(500).json({ message: 'Tracking failed', error: error.message });
+        res.status(500).json({ message: 'Pickup registration error', error: error.message });
     }
 };
 
-// @desc    Test FShip API Health
-// @route   GET /api/shipping/health
+// @desc    Get Shipping Labels
+// @route   POST /api/shipping/labels
+// @access  Private/Admin
+export const getLabels = async (req, res) => {
+    const { pickupOrderId } = req.body; // Expects array of IDs
+    try {
+        const result = await getFshipShippingLabelByPickupId(pickupOrderId);
+        // Result contains manifestfile, invoicefile, labelfile
+        res.json(result);
+    } catch (error) {
+        res.status(500).json({ message: 'Label generation failed', error: error.message });
+    }
+};
+
+// @desc    Track Shipment (Latest status)
+// @route   GET /api/shipping/track/:waybill
 // @access  Public
-export const testFshipApi = async (req, res) => {
-    const tests = {
-        apiKey: !!process.env.FSHIP_API_KEY,
-        baseUrl: process.env.FSHIP_BASE_URL || 'https://capi.fship.in',
-        results: {},
-    };
-
+export const trackShipment = async (req, res) => {
+    const { waybill } = req.params;
     try {
-        // Test 1: Serviceability Check
-        try {
-            const serviceabilityResult = await checkFshipServiceability('560001', 0.5, 0);
-            tests.results.serviceability = {
-                status: 'success',
-                data: serviceabilityResult,
-            };
-        } catch (error) {
-            tests.results.serviceability = {
-                status: 'failed',
-                error: error.message || 'Unknown error',
-                details: error.data,
-            };
+        const result = await getFshipShipmentSummary(waybill);
+        if (result && result.status === true) {
+            const summary = result.summary;
+            // Optionally update database
+            await Order.findOneAndUpdate(
+                { waybill },
+                {
+                    trackingStatus: summary.status,
+                    shippingStatus: summary.status === 'Delivered' ? 'Delivered' : 'Shipped'
+                }
+            );
+            res.json(summary);
+        } else {
+            res.status(404).json({ message: 'Tracking info not found', details: result });
         }
-
-        // Test 2: Test with another pincode
-        try {
-            const serviceabilityResult2 = await checkFshipServiceability('400001', 0.5, 0);
-            tests.results.serviceability2 = {
-                status: 'success',
-                pincode: '400001',
-                data: serviceabilityResult2,
-            };
-        } catch (error) {
-            tests.results.serviceability2 = {
-                status: 'failed',
-                pincode: '400001',
-                error: error.message || 'Unknown error',
-            };
-        }
-
-        // Overall status
-        const hasSuccessfulTest = Object.values(tests.results).some(
-            (test) => test.status === 'success'
-        );
-
-        res.json({
-            message: 'FShip API Health Check',
-            timestamp: new Date().toISOString(),
-            apiConfigured: tests.apiKey,
-            baseUrl: tests.baseUrl,
-            status: hasSuccessfulTest ? 'healthy' : 'unhealthy',
-            tests: tests.results,
-        });
     } catch (error) {
-        res.status(500).json({
-            message: 'FShip API Health Check Failed',
-            timestamp: new Date().toISOString(),
-            error: error.message,
-            status: 'error',
-        });
+        res.status(500).json({ message: 'Tracking error', error: error.message });
     }
+};
+
+// @desc    Get Full Tracking History
+// @route   GET /api/shipping/tracking-history/:waybill
+// @access  Public
+export const getTrackingHistory = async (req, res) => {
+    const { waybill } = req.params;
+    try {
+        const result = await getFshipTrackingHistory(waybill);
+        if (result && result.status === true) {
+            // Update order history in DB
+            const history = result.trackingdata.map(item => ({
+                dateAndTime: new Date(item.DateandTime),
+                status: item.Status,
+                remark: item.Remark,
+                location: item.Location
+            }));
+            await Order.findOneAndUpdate({ waybill }, { trackingHistory: history });
+            res.json(result);
+        } else {
+            res.status(404).json({ message: 'Tracking history not found', details: result });
+        }
+    } catch (error) {
+        res.status(500).json({ message: 'Tracking history error', error: error.message });
+    }
+};
+
+// @desc    Create Reverse Order
+// @route   POST /api/shipping/reverse-order
+// @access  Private/Admin
+export const createReverseOrder = async (req, res) => {
+    const { waybill, qcRequired = false, qcParameters = [] } = req.body;
+    try {
+        const order = await Order.findOne({ waybill }).populate('user', 'name email');
+        if (!order) return res.status(404).json({ message: 'Forward order not found' });
+
+        const payload = {
+            customer_Name: order.shippingAddress.fullName,
+            customer_Mobile: order.shippingAddress.mobileNumber,
+            customer_Emailid: order.user?.email || 'customer@example.com',
+            customer_Address: order.shippingAddress.houseNumber,
+            customer_PinCode: order.shippingAddress.pincode,
+            customer_City: order.shippingAddress.city,
+            orderId: "REV" + order.orderId,
+            order_Amount: order.totalPrice,
+            total_Amount: order.totalPrice,
+            pickUpAddressId: 0, // Customer address is pickup for reverse
+            shipment_Weight: 0.5,
+            shipment_Length: 10,
+            shipment_Width: 10,
+            shipment_Height: 10,
+            products: order.orderItems.map(item => ({
+                productName: item.name,
+                quantity: item.qty,
+                unitPrice: item.price,
+                brandName: 'Hridved',
+                color: 'N/A',
+                size: 'N/A',
+                qcParameters: qcParameters
+            })),
+            isQcRequired: qcRequired
+        };
+
+        const result = await createFshipReverseOrder(payload);
+        if (result && result.status === true) {
+            // Logic to handle reverse order save could be added here
+            res.json({ message: 'Reverse Order Created', result });
+        } else {
+            res.status(400).json({ message: 'Reverse Order failed', details: result });
+        }
+    } catch (error) {
+        res.status(500).json({ message: 'Reverse Order error', error: error.message });
+    }
+};
+
+// @desc    Health Check
+export const testFshipApi = async (req, res) => {
+    res.json({ message: 'Fship API Health OK', baseURL: process.env.FSHIP_BASE_URL });
 };
