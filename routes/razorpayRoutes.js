@@ -78,15 +78,45 @@ router.post('/verify', async (req, res) => {
 
                 // Automatic Fship Shipment Creation
                 try {
-                    const { createFshipOrder } = await import('../utils/fshipService.js');
-                    const shipmentData = await createFshipOrder(order);
-                    console.log('Fship Response:', JSON.stringify(shipmentData));
+                    const { createFshipForwardOrder } = await import('../utils/fshipService.js');
 
-                    if (shipmentData && (shipmentData.success || shipmentData.status === 'success')) {
-                        order.shipmentId = shipmentData.shipment_id || shipmentData.data?.shipment_id;
-                        order.trackingId = shipmentData.awb_number || shipmentData.data?.awb_number;
-                        order.courierName = shipmentData.courier_name || shipmentData.data?.courier_name;
+                    // Prepare Fship Payload
+                    const payload = {
+                        customer_Name: order.shippingAddress.fullName,
+                        customer_Mobile: order.shippingAddress.mobileNumber,
+                        customer_Emailid: order.user?.email || 'customer@example.com',
+                        customer_Address: order.shippingAddress.houseNumber,
+                        landMark: order.shippingAddress.landmark || '',
+                        customer_Address_Type: order.shippingAddress.addressType || 'Home',
+                        customer_PinCode: order.shippingAddress.pincode,
+                        customer_City: order.shippingAddress.city,
+                        orderId: order.orderId || `ORD${Date.now()}`,
+                        payment_Mode: 2, // PREPAID (since this is Razorpay verification)
+                        express_Type: order.deliveryOption === 'Express' ? 'air' : 'surface',
+                        order_Amount: Math.round(order.totalPrice),
+                        total_Amount: Math.round(order.totalPrice),
+                        cod_Amount: 0,
+                        shipment_Weight: 0.5,
+                        shipment_Length: 10,
+                        shipment_Width: 10,
+                        shipment_Height: 10,
+                        pick_Address_ID: 0,
+                        return_Address_ID: 0,
+                        products: order.orderItems.map(item => ({
+                            productName: item.name,
+                            unitPrice: item.price,
+                            quantity: item.qty,
+                            sku: String(item.product)
+                        }))
+                    };
+
+                    const result = await createFshipForwardOrder(payload);
+
+                    if (result && result.status === true) {
+                        order.waybill = result.waybill;
+                        order.apiOrderId = result.apiorderid;
                         order.shippingStatus = 'Shipped';
+                        order.shippingProvider = 'Fship';
                         await order.save();
                         console.log(`Auto-Shipment Created for Order ${order._id}`);
                     }
@@ -109,11 +139,116 @@ router.post('/verify', async (req, res) => {
     }
 });
 
-// @desc    Get Razorpay Key ID
-// @route   GET /api/razorpay/key
+// @desc    Razorpay Webhook
+// @route   POST /api/razorpay/webhook
 // @access  Public
-router.get('/key', (req, res) => {
-    res.send(process.env.RAZORPAY_KEY_ID);
+router.post('/webhook', async (req, res) => {
+    const secret = process.env.RAZORPAY_WEBHOOK_SECRET;
+    const signature = req.headers['x-razorpay-signature'];
+
+    console.log('Razorpay Webhook Received');
+
+    try {
+        // Verify Webhook Signature
+        // We use the raw body for verification to match Razorpay's signature.
+        const shasum = crypto.createHmac('sha256', secret);
+        shasum.update(req.rawBody);
+        const digest = shasum.digest('hex');
+
+        if (digest !== signature) {
+            console.error('Webhook Signature Mismatch!');
+            return res.status(400).send('Invalid signature');
+        }
+
+        const event = req.body.event;
+        const payload = req.body.payload;
+
+        if (event === 'payment.captured') {
+            const payment = payload.payment.entity;
+            const razorpay_order_id = payment.order_id;
+            const razorpay_payment_id = payment.id;
+
+            console.log(`Processing captured payment: ${razorpay_payment_id} for order: ${razorpay_order_id}`);
+
+            // Find order by razorpayOrderId
+            const order = await Order.findOne({ razorpayOrderId: razorpay_order_id }).populate('user', 'email name');
+
+            if (order && !order.isPaid) {
+                order.isPaid = true;
+                order.paidAt = Date.now();
+                order.paymentResult = {
+                    id: razorpay_payment_id,
+                    status: 'succeeded',
+                    update_time: Date.now().toString(),
+                    email_address: order.user ? order.user.email : 'N/A',
+                };
+                order.razorpayPaymentId = razorpay_payment_id;
+                // Signature is not applicable for webhooks in the same way as checkout
+                order.razorpaySignature = 'WEBHOOK_VERIFIED';
+
+                await order.save();
+                console.log(`Order ${order._id} marked as PAID via Webhook.`);
+
+                // Automatic Fship Shipment Creation
+                try {
+                    const { createFshipForwardOrder } = await import('../utils/fshipService.js');
+
+                    // Prepare Fship Payload
+                    const payload = {
+                        customer_Name: order.shippingAddress.fullName,
+                        customer_Mobile: order.shippingAddress.mobileNumber,
+                        customer_Emailid: order.user?.email || 'customer@example.com',
+                        customer_Address: order.shippingAddress.houseNumber,
+                        landMark: order.shippingAddress.landmark || '',
+                        customer_Address_Type: order.shippingAddress.addressType || 'Home',
+                        customer_PinCode: order.shippingAddress.pincode,
+                        customer_City: order.shippingAddress.city,
+                        orderId: order.orderId || `ORD${Date.now()}`,
+                        payment_Mode: 2, // PREPAID
+                        express_Type: order.deliveryOption === 'Express' ? 'air' : 'surface',
+                        order_Amount: Math.round(order.totalPrice),
+                        total_Amount: Math.round(order.totalPrice),
+                        cod_Amount: 0,
+                        shipment_Weight: 0.5,
+                        shipment_Length: 10,
+                        shipment_Width: 10,
+                        shipment_Height: 10,
+                        pick_Address_ID: 0,
+                        return_Address_ID: 0,
+                        products: order.orderItems.map(item => ({
+                            productName: item.name,
+                            unitPrice: item.price,
+                            quantity: item.qty,
+                            sku: String(item.product)
+                        }))
+                    };
+
+                    const result = await createFshipForwardOrder(payload);
+
+                    if (result && result.status === true) {
+                        order.waybill = result.waybill;
+                        order.apiOrderId = result.apiorderid;
+                        order.shippingStatus = 'Shipped';
+                        order.shippingProvider = 'Fship';
+                        await order.save();
+                        console.log(`Auto-Shipment Created for Order ${order._id} via Webhook.`);
+                    }
+                } catch (shipError) {
+                    console.error(`Failed auto-shipment in Webhook for Order ${order._id}:`, shipError.message);
+                }
+            } else if (order && order.isPaid) {
+                console.log(`Order ${order._id} is already marked as paid.`);
+            } else {
+                console.error(`No order found for Razorpay Order ID: ${razorpay_order_id}`);
+            }
+        }
+
+        res.json({ status: 'ok' });
+
+    } catch (error) {
+        console.error('Razorpay Webhook Error:', error);
+        res.status(500).json({ message: error.message });
+    }
 });
 
 export default router;

@@ -18,7 +18,7 @@ const generateOrderId = () => `ORD${Date.now()}`;
 // @route   POST /api/shipping/serviceability
 // @access  Public
 export const checkServiceability = async (req, res) => {
-    const { pincode, sourcePincode = '380001' } = req.body;
+    const { pincode, sourcePincode = '383325' } = req.body;
     try {
         const data = await checkFshipServiceabilityService(sourcePincode, pincode);
         res.json(data);
