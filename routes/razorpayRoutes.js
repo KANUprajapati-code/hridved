@@ -13,67 +13,6 @@ const razorpay = new Razorpay({
     key_secret: process.env.RAZORPAY_KEY_SECRET,
 });
 
-/**
- * HELPER: Create Fship Shipment
- * Isolated to prevent duplication between verify and webhook
- */
-const createShipment = async (order) => {
-    if (order.waybill || order.apiOrderId) {
-        console.log(`[SHIPMENT] Already exists for Order: ${order._id}. Skipping.`);
-        return { success: true, message: 'Already exists', waybill: order.waybill };
-    }
-
-    try {
-        console.log(`[SHIPMENT] Initiating Fship order for: ${order._id}`);
-        const { createFshipForwardOrder } = await import('../utils/fshipService.js');
-
-        const payload = {
-            customer_Name: order.shippingAddress.fullName,
-            customer_Mobile: order.shippingAddress.mobileNumber,
-            customer_Emailid: order.user?.email || 'customer@example.com',
-            customer_Address: order.shippingAddress.houseNumber,
-            landMark: order.shippingAddress.landmark || '',
-            customer_Address_Type: order.shippingAddress.addressType || 'Home',
-            customer_PinCode: order.shippingAddress.pincode,
-            customer_City: order.shippingAddress.city,
-            orderId: order.orderId || `ORD${Date.now()}`,
-            invoice_Number: order.orderId || `ORD${Date.now()}`,
-            payment_Mode: order.paymentMethod === 'COD' ? 1 : 2, // 1=COD, 2=PREPAID
-            express_Type: order.deliveryOption === 'Express' ? 'air' : 'surface',
-            order_Amount: Math.round(order.totalPrice),
-            total_Amount: Math.round(order.totalPrice),
-            cod_Amount: order.paymentMethod === 'COD' ? Math.round(order.totalPrice) : 0,
-            shipment_Weight: 0.5,
-            shipment_Length: 10,
-            shipment_Width: 10,
-            shipment_Height: 10,
-            pick_Address_ID: process.env.FSHIP_PICKUP_ID || 0,
-            return_Address_ID: process.env.FSHIP_PICKUP_ID || 0,
-            products: order.orderItems.map(item => ({
-                productName: item.name,
-                unitPrice: item.price,
-                quantity: item.qty,
-                sku: String(item.product)
-            }))
-        };
-
-        const result = await createFshipForwardOrder(payload);
-        if (result && result.status === true) {
-            order.waybill = result.waybill;
-            order.apiOrderId = result.apiorderid;
-            order.shippingStatus = 'Shipped';
-            order.shippingProvider = 'Fship';
-            await order.save();
-            console.log(`[SHIPMENT] SUCCESS. Waybill: ${result.waybill}`);
-            return { success: true, waybill: result.waybill };
-        }
-        console.error(`[SHIPMENT] Fship API returned failure:`, result);
-        return { success: false, message: 'Fship API error' };
-    } catch (error) {
-        console.error(`[SHIPMENT] CRITICAL ERROR for Order ${order._id}:`, error.message);
-        return { success: false, message: error.message };
-    }
-};
 
 // @desc    Create Razorpay Order
 // @route   POST /api/razorpay/order
@@ -163,7 +102,8 @@ router.post('/verify', async (req, res) => {
             console.log(`[ORDER] ${order._id} marked as PAID via Verification.`);
 
             // 2. Trigger Shipment (ONLY if just updated to paid)
-            await createShipment(order);
+            const { processFshipShipment } = await import('../utils/fshipService.js');
+            await processFshipShipment(order._id);
         } else {
             console.log(`[RAZORPAY] Order ${order._id} already marked as paid. Skipping update.`);
         }
@@ -230,7 +170,8 @@ router.post('/webhook', async (req, res) => {
                 console.log(`[ORDER] ${order._id} marked as PAID via Webhook.`);
 
                 // Trigger Shipment (ONLY if just updated to paid)
-                await createShipment(order);
+                const { processFshipShipment } = await import('../utils/fshipService.js');
+                await processFshipShipment(order._id);
             } else {
                 console.log(`[WEBHOOK] Order ${order._id} already paid. Skipping shipment trigger.`);
             }

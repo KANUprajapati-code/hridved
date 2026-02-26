@@ -72,14 +72,24 @@ export const createCheckoutOrder = async (req, res) => {
 
         const createdOrder = await order.save();
 
-        // Clear cart for COD orders immediately
+        // Handle Post-Creation Actions for COD
         if (paymentMethod === 'COD') {
+            // 1. Clear cart immediately
             try {
                 const Cart = (await import('../models/Cart.js')).default;
                 await Cart.deleteOne({ user: req.user._id });
                 console.log(`[CHECKOUT] Cart cleared for COD order: ${createdOrder._id}`);
             } catch (cartError) {
                 console.error('[CHECKOUT] Error clearing cart for COD:', cartError);
+            }
+
+            // 2. Trigger Shipment Creation
+            try {
+                const { processFshipShipment } = await import('../utils/fshipService.js');
+                await processFshipShipment(createdOrder._id);
+                console.log(`[CHECKOUT] Shipment triggered for COD order: ${createdOrder._id}`);
+            } catch (shipmentError) {
+                console.error('[CHECKOUT] Fship Shipment Error for COD:', shipmentError.message);
             }
         }
 

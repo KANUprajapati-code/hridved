@@ -9,70 +9,6 @@ import {
 } from '../utils/fshipService.js';
 import Order from '../models/Order.js';
 
-/**
- * Helper to generate order ID: ORD + timestamp
- */
-const generateOrderId = () => `ORD${Date.now()}`;
-
-// @desc    Check Pincode Serviceability
-// @route   POST /api/shipping/serviceability
-// @access  Public
-export const checkServiceability = async (req, res) => {
-    const { pincode, sourcePincode = '383325' } = req.body;
-    try {
-        let shippingOptions = [];
-
-        try {
-            const data = await checkFshipServiceabilityService(sourcePincode, pincode);
-
-            // Fship returns availability data; transform it into our format
-            if (data && data.status === true) {
-                const available = data.availability || {};
-                if (available.surface !== false) {
-                    shippingOptions.push({
-                        type: 'Standard',
-                        days: '3-5',
-                        charge: 0,
-                        description: 'Standard Delivery (3-5 days)',
-                    });
-                }
-                if (available.air !== false) {
-                    shippingOptions.push({
-                        type: 'Express',
-                        days: '1-2',
-                        charge: 99,
-                        description: 'Express Delivery (1-2 days)',
-                    });
-                }
-            }
-        } catch (fshipError) {
-            console.warn('Fship serviceability check failed, using defaults:', fshipError.message);
-        }
-
-        // Always return at least the default options
-        if (shippingOptions.length === 0) {
-            shippingOptions = [
-                {
-                    type: 'Standard',
-                    days: '3-5',
-                    charge: 0,
-                    description: 'Standard Delivery (3-5 days)',
-                },
-                {
-                    type: 'Express',
-                    days: '1-2',
-                    charge: 99,
-                    description: 'Express Delivery (1-2 days)',
-                }
-            ];
-        }
-
-        res.json({ shippingOptions });
-    } catch (error) {
-        res.status(error.status || 500).json({ message: error.message, details: error.data });
-    }
-};
-
 // @desc    Create Fship Shipment (Manual or Auto)
 // @route   POST /api/shipping/create-shipment
 // @access  Private/Admin
@@ -80,59 +16,26 @@ export const createShipment = async (req, res) => {
     const { orderId } = req.body;
 
     try {
-        const order = await Order.findById(orderId).populate('user', 'name email');
-        if (!order) return res.status(404).json({ message: 'Order not found' });
-        if (order.waybill) return res.status(400).json({ message: 'Shipment already created with waybill: ' + order.waybill });
+        const { processFshipShipment } = await import('../utils/fshipService.js');
+        const result = await processFshipShipment(orderId);
 
-        // Prepare Fship Payload
-        const payload = {
-            customer_Name: order.shippingAddress.fullName,
-            customer_Mobile: order.shippingAddress.mobileNumber,
-            customer_Emailid: order.user?.email || 'customer@example.com',
-            customer_Address: order.shippingAddress.houseNumber,
-            landMark: order.shippingAddress.landmark || '',
-            customer_Address_Type: order.shippingAddress.addressType || 'Home',
-            customer_PinCode: order.shippingAddress.pincode,
-            customer_City: order.shippingAddress.city,
-            orderId: order.orderId || generateOrderId(),
-            invoice_Number: order.orderId || generateOrderId(),
-            payment_Mode: order.paymentMethod === 'COD' ? 1 : 2, // 1=COD, 2=PREPAID
-            express_Type: order.deliveryOption === 'Express' ? 'air' : 'surface',
-            order_Amount: Math.round(order.totalPrice),
-            total_Amount: Math.round(order.totalPrice),
-            cod_Amount: order.paymentMethod === 'COD' ? Math.round(order.totalPrice) : 0,
-            shipment_Weight: 0.5,
-            shipment_Length: 10,
-            shipment_Width: 10,
-            shipment_Height: 10,
-            pick_Address_ID: process.env.FSHIP_PICKUP_ID || 0, // Should be configured address ID
-            return_Address_ID: process.env.FSHIP_PICKUP_ID || 0,
-            products: order.orderItems.map(item => ({
-                productName: item.name,
-                unitPrice: item.price,
-                quantity: item.qty,
-                sku: String(item.product)
-            }))
-        };
-
-        const result = await createFshipForwardOrder(payload);
-
-        if (result && result.status === true) {
-            order.waybill = result.waybill;
-            order.apiOrderId = result.apiorderid;
-            order.shippingStatus = 'Shipped';
-            order.shippingProvider = 'Fship';
-            await order.save();
-            return res.json({ message: 'Shipment Created Successfully', waybill: result.waybill, apiOrderId: result.apiorderid });
+        if (result.success) {
+            return res.json({
+                message: 'Shipment Created Successfully',
+                waybill: result.waybill
+            });
         } else {
-            order.shippingStatus = 'Shipping Pending';
-            await order.save();
-            return res.status(400).json({ message: 'Fship API failed to create order', details: result });
+            return res.status(400).json({
+                message: 'Fship API failed to create shipment',
+                details: result.details
+            });
         }
-
     } catch (error) {
         console.error('Create Shipment Error:', error);
-        res.status(500).json({ message: 'Shipment creation failed', error: error.message, details: error.data });
+        res.status(500).json({
+            message: 'Shipment creation failed',
+            error: error.message
+        });
     }
 };
 

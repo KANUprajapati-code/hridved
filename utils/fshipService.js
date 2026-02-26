@@ -121,4 +121,75 @@ export const checkFshipServiceability = async (sourcePincode, destinationPincode
     }
 };
 
+
+/**
+ * Centralized Shipment Creation Helper
+ * Handles payload preparation, API call, and DB update
+ * @param {string} orderId - Database Order ID
+ */
+export const processFshipShipment = async (orderId) => {
+    try {
+        const Order = (await import('../models/Order.js')).default;
+        const order = await Order.findById(orderId).populate('user', 'email name');
+
+        if (!order) throw new Error('Order not found');
+        if (order.waybill) {
+            console.log(`[SHIPMENT] Already exists for Order: ${order._id}. Skipping.`);
+            return { success: true, waybill: order.waybill };
+        }
+
+        console.log(`[SHIPMENT] Initiating Fship order for: ${order._id}`);
+
+        const payload = {
+            customer_Name: order.shippingAddress.fullName,
+            customer_Mobile: order.shippingAddress.mobileNumber,
+            customer_Emailid: order.user?.email || 'customer@example.com',
+            customer_Address: order.shippingAddress.houseNumber,
+            landMark: order.shippingAddress.landmark || '',
+            customer_Address_Type: order.shippingAddress.addressType || 'Home',
+            customer_PinCode: order.shippingAddress.pincode,
+            customer_City: order.shippingAddress.city,
+            orderId: order.orderId || `ORD${Date.now()}`,
+            invoice_Number: order.orderId || `ORD${Date.now()}`,
+            payment_Mode: order.paymentMethod === 'COD' ? 1 : 2, // 1=COD, 2=PREPAID
+            express_Type: order.deliveryOption === 'Express' ? 'air' : 'surface',
+            order_Amount: Math.round(order.totalPrice),
+            total_Amount: Math.round(order.totalPrice),
+            cod_Amount: order.paymentMethod === 'COD' ? Math.round(order.totalPrice) : 0,
+            shipment_Weight: 0.5,
+            shipment_Length: 10,
+            shipment_Width: 10,
+            shipment_Height: 10,
+            pick_Address_ID: process.env.FSHIP_PICKUP_ID || 0,
+            return_Address_ID: process.env.FSHIP_PICKUP_ID || 0,
+            products: order.orderItems.map(item => ({
+                productName: item.name,
+                unitPrice: item.price,
+                quantity: item.qty,
+                sku: String(item.product)
+            }))
+        };
+
+        const result = await createFshipForwardOrder(payload);
+
+        if (result && result.status === true) {
+            order.waybill = result.waybill;
+            order.apiOrderId = result.apiorderid;
+            order.shippingStatus = 'Shipped';
+            order.shippingProvider = 'Fship';
+            await order.save();
+            console.log(`[SHIPMENT] SUCCESS. Waybill: ${result.waybill}`);
+            return { success: true, waybill: result.waybill };
+        }
+
+        console.error(`[SHIPMENT] Fship API Failure:`, result);
+        order.shippingStatus = 'Shipping Pending';
+        await order.save();
+        return { success: false, details: result };
+    } catch (error) {
+        console.error(`[SHIPMENT] CRITICAL ERROR:`, error.message);
+        throw error;
+    }
+};
+
 export default fshipClient;
