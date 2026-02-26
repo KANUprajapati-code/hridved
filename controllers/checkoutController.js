@@ -16,14 +16,16 @@ export const createCheckoutOrder = async (req, res) => {
             totalPrice,
         } = req.body;
 
+        console.log(`[CHECKOUT] Creating Order for User: ${req.user._id}`);
+
         // Validation
         if (!addressId || !deliveryOption || !orderItems || orderItems.length === 0) {
-            return res.status(400).json({ message: 'Missing required fields' });
+            return res.status(400).json({ success: false, message: 'Missing required fields' });
         }
 
         // Validate delivery option
         if (!['Standard', 'Express'].includes(deliveryOption)) {
-            return res.status(400).json({ message: 'Invalid delivery option' });
+            return res.status(400).json({ success: false, message: 'Invalid delivery option' });
         }
 
         // Get address details
@@ -31,12 +33,12 @@ export const createCheckoutOrder = async (req, res) => {
         const address = await Address.findById(addressId);
 
         if (!address) {
-            return res.status(404).json({ message: 'Address not found' });
+            return res.status(404).json({ success: false, message: 'Address not found' });
         }
 
         // Verify address belongs to user
         if (address.user.toString() !== req.user._id.toString()) {
-            return res.status(403).json({ message: 'Not authorized to use this address' });
+            return res.status(403).json({ success: false, message: 'Not authorized to use this address' });
         }
 
         // Calculate tax (simplified - 5% GST)
@@ -67,10 +69,12 @@ export const createCheckoutOrder = async (req, res) => {
         });
 
         const createdOrder = await order.save();
-        res.status(201).json(createdOrder);
+        console.log(`[CHECKOUT] Order Created: ${createdOrder._id}`);
+        res.status(201).json({ success: true, data: createdOrder });
 
     } catch (error) {
-        res.status(500).json({ message: error.message });
+        console.error('[CHECKOUT] Create Order Error:', error);
+        res.status(500).json({ success: false, message: error.message });
     }
 };
 
@@ -79,21 +83,23 @@ export const createCheckoutOrder = async (req, res) => {
 // @access  Private
 export const getCheckoutOrder = async (req, res) => {
     try {
+        console.log(`[CHECKOUT] Fetching Order: ${req.params.orderId}`);
         const order = await Order.findById(req.params.orderId).populate('user', 'name email');
 
         if (!order) {
-            return res.status(404).json({ message: 'Order not found' });
+            return res.status(404).json({ success: false, message: 'Order not found' });
         }
 
         // Verify order belongs to user
         if (order.user._id.toString() !== req.user._id.toString()) {
-            return res.status(403).json({ message: 'Not authorized to view this order' });
+            return res.status(403).json({ success: false, message: 'Not authorized to view this order' });
         }
 
-        res.json(order);
+        res.json({ success: true, data: order });
 
     } catch (error) {
-        res.status(500).json({ message: error.message });
+        console.error('[CHECKOUT] Get Order Error:', error);
+        res.status(500).json({ success: false, message: error.message });
     }
 };
 
@@ -103,20 +109,21 @@ export const getCheckoutOrder = async (req, res) => {
 export const confirmPayment = async (req, res) => {
     try {
         const { razorpayPaymentId, razorpayOrderId, razorpaySignature } = req.body;
+        console.log(`[CHECKOUT] Confirming Payment for Order: ${req.params.orderId}`);
 
         if (!razorpayPaymentId || !razorpayOrderId) {
-            return res.status(400).json({ message: 'Payment details missing' });
+            return res.status(400).json({ success: false, message: 'Payment details missing' });
         }
 
         const order = await Order.findById(req.params.orderId);
 
         if (!order) {
-            return res.status(404).json({ message: 'Order not found' });
+            return res.status(404).json({ success: false, message: 'Order not found' });
         }
 
         // Verify order belongs to user
         if (order.user._id.toString() !== req.user._id.toString()) {
-            return res.status(403).json({ message: 'Not authorized to update this order' });
+            return res.status(403).json({ success: false, message: 'Not authorized to update this order' });
         }
 
         // Update order with payment details
@@ -127,23 +134,25 @@ export const confirmPayment = async (req, res) => {
         order.razorpaySignature = razorpaySignature;
 
         const updatedOrder = await order.save();
+        console.log(`[CHECKOUT] Payment Confirmed: ${updatedOrder._id}`);
 
         // Clear user's cart after successful order
         try {
             const Cart = (await import('../models/Cart.js')).default;
             await Cart.deleteOne({ user: req.user._id });
+            console.log(`[CHECKOUT] Cart cleared for user: ${req.user._id}`);
         } catch (cartError) {
-            console.error('Error clearing cart:', cartError);
-            // Don't fail the order if cart clearing fails
+            console.error('[CHECKOUT] Error clearing cart:', cartError);
         }
 
         res.json({
             success: true,
-            order: updatedOrder,
-            message: 'Payment confirmed and order created successfully',
+            data: updatedOrder,
+            message: 'Payment confirmed and order updated successfully',
         });
 
     } catch (error) {
-        res.status(500).json({ message: error.message });
+        console.error('[CHECKOUT] Confirm Payment Error:', error);
+        res.status(500).json({ success: false, message: error.message });
     }
 };

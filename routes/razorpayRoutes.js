@@ -13,12 +13,72 @@ const razorpay = new Razorpay({
     key_secret: process.env.RAZORPAY_KEY_SECRET,
 });
 
+/**
+ * HELPER: Create Fship Shipment
+ * Isolated to prevent duplication between verify and webhook
+ */
+const createShipment = async (order) => {
+    if (order.waybill || order.apiOrderId) {
+        console.log(`[SHIPMENT] Already exists for Order: ${order._id}. Skipping.`);
+        return { success: true, message: 'Already exists', waybill: order.waybill };
+    }
+
+    try {
+        console.log(`[SHIPMENT] Initiating Fship order for: ${order._id}`);
+        const { createFshipForwardOrder } = await import('../utils/fshipService.js');
+
+        const payload = {
+            customer_Name: order.shippingAddress.fullName,
+            customer_Mobile: order.shippingAddress.mobileNumber,
+            customer_Emailid: order.user?.email || 'customer@example.com',
+            customer_Address: order.shippingAddress.houseNumber,
+            landMark: order.shippingAddress.landmark || '',
+            customer_Address_Type: order.shippingAddress.addressType || 'Home',
+            customer_PinCode: order.shippingAddress.pincode,
+            customer_City: order.shippingAddress.city,
+            orderId: order.orderId || `ORD${Date.now()}`,
+            payment_Mode: 2, // PREPAID
+            express_Type: order.deliveryOption === 'Express' ? 'air' : 'surface',
+            order_Amount: Math.round(order.totalPrice),
+            total_Amount: Math.round(order.totalPrice),
+            cod_Amount: 0,
+            shipment_Weight: 0.5,
+            shipment_Length: 10,
+            shipment_Width: 10,
+            shipment_Height: 10,
+            pick_Address_ID: 0,
+            return_Address_ID: 0,
+            products: order.orderItems.map(item => ({
+                productName: item.name,
+                unitPrice: item.price,
+                quantity: item.qty,
+                sku: String(item.product)
+            }))
+        };
+
+        const result = await createFshipForwardOrder(payload);
+        if (result && result.status === true) {
+            order.waybill = result.waybill;
+            order.apiOrderId = result.apiorderid;
+            order.shippingStatus = 'Shipped';
+            order.shippingProvider = 'Fship';
+            await order.save();
+            console.log(`[SHIPMENT] SUCCESS. Waybill: ${result.waybill}`);
+            return { success: true, waybill: result.waybill };
+        }
+        console.error(`[SHIPMENT] Fship API returned failure:`, result);
+        return { success: false, message: 'Fship API error' };
+    } catch (error) {
+        console.error(`[SHIPMENT] CRITICAL ERROR for Order ${order._id}:`, error.message);
+        return { success: false, message: error.message };
+    }
+};
+
 // @desc    Create Razorpay Order
 // @route   POST /api/razorpay/order
-// @access  Private
 router.post('/order', async (req, res) => {
     const { amount, currency = 'INR', receipt } = req.body;
-    console.log(`Creating Razorpay Order: Amount=${amount}, Receipt=${receipt}`);
+    console.log(`[RAZORPAY] Create Order Request: Amount=${amount}, Receipt=${receipt}`);
 
     try {
         if (!process.env.RAZORPAY_KEY_ID || !process.env.RAZORPAY_KEY_SECRET) {
@@ -26,22 +86,21 @@ router.post('/order', async (req, res) => {
         }
 
         const options = {
-            amount: amount * 100, // Amount in paise
+            amount: Math.round(amount * 100), // Ensure it's an integer
             currency,
             receipt,
         };
 
         const order = await razorpay.orders.create(options);
-        res.json(order);
+        res.status(201).json({ success: true, data: order });
     } catch (error) {
-        console.error('Razorpay Order Error:', error);
-        res.status(500).json({ message: error.message });
+        console.error('[RAZORPAY] Create Order Error:', error);
+        res.status(500).json({ success: false, message: error.message });
     }
 });
 
-// @desc    Pre-save Razorpay Order ID to DB Order (called before payment to enable webhook lookup)
+// @desc    Pre-save Razorpay Order ID to DB Order
 // @route   PATCH /api/razorpay/pre-save/:orderId
-// @access  Private
 router.patch('/pre-save/:orderId', async (req, res) => {
     const { orderId } = req.params;
     const { razorpayOrderId } = req.body;
@@ -49,235 +108,137 @@ router.patch('/pre-save/:orderId', async (req, res) => {
     try {
         const order = await Order.findById(orderId);
         if (!order) {
-            return res.status(404).json({ message: 'Order not found' });
+            return res.status(404).json({ success: false, message: 'Order not found' });
         }
         order.razorpayOrderId = razorpayOrderId;
         await order.save();
-        console.log(`Pre-saved razorpayOrderId ${razorpayOrderId} for order ${orderId}`);
-        res.json({ message: 'Saved' });
+        console.log(`[DB] Pre-saved razorpayOrderId ${razorpayOrderId} for order ${orderId}`);
+        res.json({ success: true, message: 'Order reference saved' });
     } catch (error) {
-        console.error('Pre-save Error:', error);
-        res.status(500).json({ message: error.message });
+        console.error('[DB] Pre-save Error:', error);
+        res.status(500).json({ success: false, message: error.message });
     }
 });
 
 // @desc    Verify Razorpay Payment
 // @route   POST /api/razorpay/verify
-// @access  Private
 router.post('/verify', async (req, res) => {
     const { razorpay_order_id, razorpay_payment_id, razorpay_signature, orderId } = req.body;
-    console.log(`Verifying Razorpay Payment: OrderID=${orderId}, RazorpayOrder=${razorpay_order_id}, PaymentID=${razorpay_payment_id}`);
-
-    const body = razorpay_order_id + '|' + razorpay_payment_id;
+    console.log(`[RAZORPAY] Manual Verification: Order=${orderId}, RZP_Order=${razorpay_order_id}`);
 
     try {
+        const body = razorpay_order_id + '|' + razorpay_payment_id;
         const expectedSignature = crypto
             .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET)
             .update(body.toString())
             .digest('hex');
 
-        console.log(`Signature Check: Expected=${expectedSignature}, Received=${razorpay_signature}`);
-
-        if (expectedSignature === razorpay_signature) {
-            console.log('Signature Matched. Updating order...');
-            // Update Order
-            const order = await Order.findById(orderId).populate('user', 'email name');
-            if (order) {
-                order.isPaid = true;
-                order.paidAt = Date.now();
-                order.paymentResult = {
-                    id: razorpay_payment_id,
-                    status: 'succeeded',
-                    update_time: Date.now().toString(),
-                    email_address: order.user ? order.user.email : 'N/A',
-                };
-                order.razorpayOrderId = razorpay_order_id;
-                order.razorpayPaymentId = razorpay_payment_id;
-                order.razorpaySignature = razorpay_signature;
-
-                await order.save();
-                console.log(`Order ${orderId} marked as PAID successfully.`);
-
-                // Automatic Fship Shipment Creation
-                try {
-                    const { createFshipForwardOrder } = await import('../utils/fshipService.js');
-
-                    // Prepare Fship Payload
-                    const payload = {
-                        customer_Name: order.shippingAddress.fullName,
-                        customer_Mobile: order.shippingAddress.mobileNumber,
-                        customer_Emailid: order.user?.email || 'customer@example.com',
-                        customer_Address: order.shippingAddress.houseNumber,
-                        landMark: order.shippingAddress.landmark || '',
-                        customer_Address_Type: order.shippingAddress.addressType || 'Home',
-                        customer_PinCode: order.shippingAddress.pincode,
-                        customer_City: order.shippingAddress.city,
-                        orderId: order.orderId || `ORD${Date.now()}`,
-                        payment_Mode: 2, // PREPAID (since this is Razorpay verification)
-                        express_Type: order.deliveryOption === 'Express' ? 'air' : 'surface',
-                        order_Amount: Math.round(order.totalPrice),
-                        total_Amount: Math.round(order.totalPrice),
-                        cod_Amount: 0,
-                        shipment_Weight: 0.5,
-                        shipment_Length: 10,
-                        shipment_Width: 10,
-                        shipment_Height: 10,
-                        pick_Address_ID: 0,
-                        return_Address_ID: 0,
-                        products: order.orderItems.map(item => ({
-                            productName: item.name,
-                            unitPrice: item.price,
-                            quantity: item.qty,
-                            sku: String(item.product)
-                        }))
-                    };
-
-                    const result = await createFshipForwardOrder(payload);
-
-                    if (result && result.status === true) {
-                        order.waybill = result.waybill;
-                        order.apiOrderId = result.apiorderid;
-                        order.shippingStatus = 'Shipped';
-                        order.shippingProvider = 'Fship';
-                        await order.save();
-                        console.log(`Auto-Shipment Created for Order ${order._id}`);
-                    }
-                } catch (shipError) {
-                    console.error(`Failed to auto-create shipment for Order ${order._id}:`, shipError.message);
-                }
-
-                res.json({ status: 'success', message: 'Payment verified' });
-            } else {
-                console.error(`Order ${orderId} not found during verification.`);
-                res.status(404).json({ message: 'Order not found' });
-            }
-        } else {
-            console.error('Signature Mismatch!');
-            res.status(400).json({ status: 'failure', message: 'Invalid signature' });
+        if (expectedSignature !== razorpay_signature) {
+            console.error('[RAZORPAY] Signature Mismatch!');
+            return res.status(400).json({ success: false, message: 'Invalid payment signature' });
         }
+
+        console.log('[RAZORPAY] Signature Valid. Fetching order...');
+        const order = await Order.findById(orderId).populate('user', 'email name');
+        if (!order) {
+            return res.status(404).json({ success: false, message: 'Order not found' });
+        }
+
+        // 1. Update Payment Status if not already paid
+        if (!order.isPaid) {
+            order.isPaid = true;
+            order.paidAt = Date.now();
+            order.paymentResult = {
+                id: razorpay_payment_id,
+                status: 'succeeded',
+                update_time: Date.now().toString(),
+                email_address: order.user ? order.user.email : 'N/A',
+            };
+            order.razorpayOrderId = razorpay_order_id;
+            order.razorpayPaymentId = razorpay_payment_id;
+            order.razorpaySignature = razorpay_signature;
+            await order.save();
+            console.log(`[ORDER] ${order._id} marked as PAID via Verification.`);
+        }
+
+        // 2. Trigger Shipment
+        await createShipment(order);
+
+        res.json({ success: true, message: 'Payment verified and order updated' });
     } catch (error) {
-        console.error('Razorpay Verification Error:', error);
-        res.status(500).json({ message: error.message });
+        console.error('[RAZORPAY] Verification CRITICAL Error:', error);
+        res.status(500).json({ success: false, message: error.message });
     }
 });
 
 // @desc    Razorpay Webhook
 // @route   POST /api/razorpay/webhook
-// @access  Public
 router.post('/webhook', async (req, res) => {
     const secret = process.env.RAZORPAY_WEBHOOK_SECRET;
     const signature = req.headers['x-razorpay-signature'];
+    const clientIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
 
-    console.log('Razorpay Webhook Received');
+    console.log(`[WEBHOOK] Received from IP: ${clientIp}`);
 
     try {
-        // Verify Webhook Signature
-        // We use the raw body for verification to match Razorpay's signature.
         const shasum = crypto.createHmac('sha256', secret);
         shasum.update(req.rawBody);
         const digest = shasum.digest('hex');
 
         if (digest !== signature) {
-            console.error('Webhook Signature Mismatch!');
-            return res.status(400).send('Invalid signature');
+            console.warn('[WEBHOOK] Invalid Signature Attempt!');
+            return res.status(400).json({ success: false, message: 'Invalid signature' });
         }
 
-        const event = req.body.event;
-        const payload = req.body.payload;
+        const { event, payload } = req.body;
+        console.log(`[WEBHOOK] Event: ${event}`);
 
         if (event === 'payment.captured') {
             const payment = payload.payment.entity;
-            const razorpay_order_id = payment.order_id;
-            const razorpay_payment_id = payment.id;
+            const rzp_order_id = payment.order_id;
+            const rzp_payment_id = payment.id;
 
-            console.log(`Processing captured payment: ${razorpay_payment_id} for order: ${razorpay_order_id}`);
+            const order = await Order.findOne({ razorpayOrderId: rzp_order_id }).populate('user', 'email name');
 
-            // Find order by razorpayOrderId
-            const order = await Order.findOne({ razorpayOrderId: razorpay_order_id }).populate('user', 'email name');
+            if (!order) {
+                console.error(`[WEBHOOK] Order NOT FOUND for RZP ID: ${rzp_order_id}`);
+                return res.status(200).json({ status: 'ok', message: 'Order not found, but webhook acknowledged' });
+            }
 
-            if (order && !order.isPaid) {
+            // Update if not paid
+            if (!order.isPaid) {
                 order.isPaid = true;
                 order.paidAt = Date.now();
                 order.paymentResult = {
-                    id: razorpay_payment_id,
+                    id: rzp_payment_id,
                     status: 'succeeded',
                     update_time: Date.now().toString(),
                     email_address: order.user ? order.user.email : 'N/A',
                 };
-                order.razorpayPaymentId = razorpay_payment_id;
-                // Signature is not applicable for webhooks in the same way as checkout
+                order.razorpayPaymentId = rzp_payment_id;
                 order.razorpaySignature = 'WEBHOOK_VERIFIED';
-
                 await order.save();
-                console.log(`Order ${order._id} marked as PAID via Webhook.`);
-
-                // Automatic Fship Shipment Creation
-                try {
-                    const { createFshipForwardOrder } = await import('../utils/fshipService.js');
-
-                    // Prepare Fship Payload
-                    const payload = {
-                        customer_Name: order.shippingAddress.fullName,
-                        customer_Mobile: order.shippingAddress.mobileNumber,
-                        customer_Emailid: order.user?.email || 'customer@example.com',
-                        customer_Address: order.shippingAddress.houseNumber,
-                        landMark: order.shippingAddress.landmark || '',
-                        customer_Address_Type: order.shippingAddress.addressType || 'Home',
-                        customer_PinCode: order.shippingAddress.pincode,
-                        customer_City: order.shippingAddress.city,
-                        orderId: order.orderId || `ORD${Date.now()}`,
-                        payment_Mode: 2, // PREPAID
-                        express_Type: order.deliveryOption === 'Express' ? 'air' : 'surface',
-                        order_Amount: Math.round(order.totalPrice),
-                        total_Amount: Math.round(order.totalPrice),
-                        cod_Amount: 0,
-                        shipment_Weight: 0.5,
-                        shipment_Length: 10,
-                        shipment_Width: 10,
-                        shipment_Height: 10,
-                        pick_Address_ID: 0,
-                        return_Address_ID: 0,
-                        products: order.orderItems.map(item => ({
-                            productName: item.name,
-                            unitPrice: item.price,
-                            quantity: item.qty,
-                            sku: String(item.product)
-                        }))
-                    };
-
-                    const result = await createFshipForwardOrder(payload);
-
-                    if (result && result.status === true) {
-                        order.waybill = result.waybill;
-                        order.apiOrderId = result.apiorderid;
-                        order.shippingStatus = 'Shipped';
-                        order.shippingProvider = 'Fship';
-                        await order.save();
-                        console.log(`Auto-Shipment Created for Order ${order._id} via Webhook.`);
-                    }
-                } catch (shipError) {
-                    console.error(`Failed auto-shipment in Webhook for Order ${order._id}:`, shipError.message);
-                }
-            } else if (order && order.isPaid) {
-                console.log(`Order ${order._id} is already marked as paid.`);
-            } else {
-                console.error(`No order found for Razorpay Order ID: ${razorpay_order_id}`);
+                console.log(`[ORDER] ${order._id} marked as PAID via Webhook.`);
             }
+
+            // Trigger Shipment
+            await createShipment(order);
         }
 
         res.json({ status: 'ok' });
-
     } catch (error) {
-        console.error('Razorpay Webhook Error:', error);
-        res.status(500).json({ message: error.message });
+        console.error('[WEBHOOK] Process Error:', error);
+        res.status(500).json({ success: false, message: error.message });
     }
 });
 
 // @desc    Get Razorpay Key ID
 // @route   GET /api/razorpay/key
-// @access  Public
 router.get('/key', (req, res) => {
-    res.send(process.env.RAZORPAY_KEY_ID);
+    if (!process.env.RAZORPAY_KEY_ID) {
+        return res.status(500).json({ success: false, message: 'Razorpay key not configured' });
+    }
+    res.json({ success: true, key: process.env.RAZORPAY_KEY_ID });
 });
 
 export default router;

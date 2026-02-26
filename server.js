@@ -3,13 +3,34 @@ import dotenv from 'dotenv';
 import cookieParser from 'cookie-parser';
 import cors from 'cors';
 import connectDB from './config/db.js';
+import helmet from 'helmet';
+import rateLimit from 'express-rate-limit';
 
 dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// Trust proxy - important for production
+// Security Middleware
+app.use(helmet());
+
+// Simple Request Logger for Production Debugging
+app.use((req, res, next) => {
+  console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
+  next();
+});
+
+// Rate Limiting
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // Limit each IP to 100 requests per windowMs
+  standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
+  legacyHeaders: false, // Disable the `X-RateLimit-*` headers
+  message: 'Too many requests from this IP, please try again after 15 minutes',
+});
+app.use('/api/', limiter);
+
+// Trust proxy - important for production (especially behind Vercel/VPS reverse proxy)
 app.set('trust proxy', 1);
 
 // Middleware
@@ -25,26 +46,25 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(cookieParser());
 
 /* =========================
-   ✅ FIXED CORS CONFIG
+   ✅ HARDENED CORS CONFIG
 ========================= */
 
 const allowedOrigins = [
   "http://localhost:5173",
   "http://localhost:5174",
   "https://www.hridved.in",
-  "https://hridved.in",
-  "https://hridved-opal.vercel.app"
+  "https://hridved.in"
 ];
+
+// Strict regex for Vercel subdomains (replaces insecure origin.includes)
+const vercelRegex = /^https:\/\/hridved-.*\.vercel\.app$/;
 
 app.use(cors({
   origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl)
     if (!origin) return callback(null, true);
 
-    const isAllowed = allowedOrigins.includes(origin) ||
-      origin.endsWith('.vercel.app') ||
-      origin.includes('hridved');
-
-    if (isAllowed) {
+    if (allowedOrigins.includes(origin) || vercelRegex.test(origin)) {
       callback(null, true);
     } else {
       console.error('CORS Blocked for origin:', origin);
@@ -56,9 +76,7 @@ app.use(cors({
   allowedHeaders: [
     'Content-Type',
     'Authorization',
-    'x-auth-token',
     'Origin',
-    'X-Requested-With',
     'Accept'
   ],
   exposedHeaders: ['set-cookie'],
@@ -104,7 +122,6 @@ app.use('/api/content', contentRoutes);
 app.use('/api/upload', uploadRoutes);
 app.use('/api/doctors', doctorRoutes);
 app.use('/api/tips', tipRoutes);
-app.use('/api/config', paymentRoutes);
 app.use('/api/payment', paymentRoutes);
 app.use('/api/razorpay', razorpayRoutes);
 app.use('/api/shipping', shippingRoutes);
