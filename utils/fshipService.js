@@ -11,25 +11,23 @@ const fshipClient = axios.create({
     timeout: 15000,
 });
 
-// Interceptor to log full URLs and handle headers dynamically
+// Interceptor to handle headers and log requests
 fshipClient.interceptors.request.use((config) => {
     const fullUrl = `${config.baseURL}${config.url}`;
 
-    // Ensure we have a token
-    if (!FSHIP_KEY) {
-        console.warn('[SHIPMENT] WARNING: FSHIP_TOKEN is missing in environment!');
+    // Ensure we have a token and it's trimmed
+    const cleanToken = (FSHIP_KEY || '').trim();
+
+    if (!cleanToken) {
+        console.warn('[SHIPMENT] WARNING: FSHIP_TOKEN is missing!');
     }
 
-    // Fship typically uses 'signature' header for the token
+    // Fship documentation confirmed: use 'signature' header
     config.headers['Content-Type'] = 'application/json';
-    config.headers['signature'] = FSHIP_KEY;
-
-    // Add Authorization header as fallback/alternative if signature doesn't work
-    // Some Fship accounts use Bearer token pattern
-    config.headers['Authorization'] = `Bearer ${FSHIP_KEY}`;
+    config.headers['signature'] = cleanToken;
 
     console.log(`Fship Request: [${config.method.toUpperCase()}] ${fullUrl}`);
-    console.log(`Fship Headers: signature: ${FSHIP_KEY.substring(0, 5)}..., Authorization: Bearer ${FSHIP_KEY.substring(0, 5)}...`);
+    console.log(`Fship Auth: signature header length is ${cleanToken.length} chars (starts with ${cleanToken.substring(0, 5)}...)`);
 
     return config;
 });
