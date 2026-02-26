@@ -2,8 +2,9 @@ import axios from 'axios';
 import dotenv from 'dotenv';
 dotenv.config();
 
-const FSHIP_BASE_URL = (process.env.FSHIP_BASE_URL || 'https://api.fship.in').replace(/\/+$/, '');
+const FSHIP_BASE_URL = (process.env.FSHIP_BASE_URL || 'https://capi.fship.in').replace(/\/+$/, '');
 const FSHIP_KEY = process.env.FSHIP_TOKEN || process.env.FSHIP_KEY || process.env.FSHIP_API_KEY || '';
+const FSHIP_PICKUP_ID = process.env.FSHIP_PICKUP_ID || '0';
 
 const fshipClient = axios.create({
     baseURL: FSHIP_BASE_URL,

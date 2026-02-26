@@ -37,6 +37,7 @@ const createShipment = async (order) => {
             customer_PinCode: order.shippingAddress.pincode,
             customer_City: order.shippingAddress.city,
             orderId: order.orderId || `ORD${Date.now()}`,
+            invoice_Number: order.orderId || `ORD${Date.now()}`,
             payment_Mode: order.paymentMethod === 'COD' ? 1 : 2, // 1=COD, 2=PREPAID
             express_Type: order.deliveryOption === 'Express' ? 'air' : 'surface',
             order_Amount: Math.round(order.totalPrice),
@@ -46,8 +47,8 @@ const createShipment = async (order) => {
             shipment_Length: 10,
             shipment_Width: 10,
             shipment_Height: 10,
-            pick_Address_ID: 0,
-            return_Address_ID: 0,
+            pick_Address_ID: process.env.FSHIP_PICKUP_ID || 0,
+            return_Address_ID: process.env.FSHIP_PICKUP_ID || 0,
             products: order.orderItems.map(item => ({
                 productName: item.name,
                 unitPrice: item.price,

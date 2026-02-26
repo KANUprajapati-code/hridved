@@ -95,6 +95,7 @@ export const createShipment = async (req, res) => {
             customer_PinCode: order.shippingAddress.pincode,
             customer_City: order.shippingAddress.city,
             orderId: order.orderId || generateOrderId(),
+            invoice_Number: order.orderId || generateOrderId(),
             payment_Mode: order.paymentMethod === 'COD' ? 1 : 2, // 1=COD, 2=PREPAID
             express_Type: order.deliveryOption === 'Express' ? 'air' : 'surface',
             order_Amount: Math.round(order.totalPrice),
@@ -104,8 +105,8 @@ export const createShipment = async (req, res) => {
             shipment_Length: 10,
             shipment_Width: 10,
             shipment_Height: 10,
-            pick_Address_ID: 0, // Should be configured address ID
-            return_Address_ID: 0,
+            pick_Address_ID: process.env.FSHIP_PICKUP_ID || 0, // Should be configured address ID
+            return_Address_ID: process.env.FSHIP_PICKUP_ID || 0,
             products: order.orderItems.map(item => ({
                 productName: item.name,
                 unitPrice: item.price,
