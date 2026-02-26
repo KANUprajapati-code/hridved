@@ -97,9 +97,9 @@ export const createShipment = async (req, res) => {
             orderId: order.orderId || generateOrderId(),
             payment_Mode: order.paymentMethod === 'COD' ? 1 : 2, // 1=COD, 2=PREPAID
             express_Type: order.deliveryOption === 'Express' ? 'air' : 'surface',
-            order_Amount: order.totalPrice,
-            total_Amount: order.totalPrice,
-            cod_Amount: order.paymentMethod === 'COD' ? order.totalPrice : 0,
+            order_Amount: Math.round(order.totalPrice),
+            total_Amount: Math.round(order.totalPrice),
+            cod_Amount: order.paymentMethod === 'COD' ? Math.round(order.totalPrice) : 0,
             shipment_Weight: 0.5,
             shipment_Length: 10,
             shipment_Width: 10,

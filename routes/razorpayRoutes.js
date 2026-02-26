@@ -37,11 +37,11 @@ const createShipment = async (order) => {
             customer_PinCode: order.shippingAddress.pincode,
             customer_City: order.shippingAddress.city,
             orderId: order.orderId || `ORD${Date.now()}`,
-            payment_Mode: 2, // PREPAID
+            payment_Mode: order.paymentMethod === 'COD' ? 1 : 2, // 1=COD, 2=PREPAID
             express_Type: order.deliveryOption === 'Express' ? 'air' : 'surface',
             order_Amount: Math.round(order.totalPrice),
             total_Amount: Math.round(order.totalPrice),
-            cod_Amount: 0,
+            cod_Amount: order.paymentMethod === 'COD' ? Math.round(order.totalPrice) : 0,
             shipment_Weight: 0.5,
             shipment_Length: 10,
             shipment_Width: 10,
@@ -108,11 +108,12 @@ router.patch('/pre-save/:orderId', async (req, res) => {
     try {
         const order = await Order.findById(orderId);
         if (!order) {
+            console.error(`[DB] Pre-save FAILED: Order ${orderId} not found`);
             return res.status(404).json({ success: false, message: 'Order not found' });
         }
         order.razorpayOrderId = razorpayOrderId;
         await order.save();
-        console.log(`[DB] Pre-saved razorpayOrderId ${razorpayOrderId} for order ${orderId}`);
+        console.log(`[DB] Pre-save SUCCESS: Razorpay ID ${razorpayOrderId} linked to Order ${orderId}`);
         res.json({ success: true, message: 'Order reference saved' });
     } catch (error) {
         console.error('[DB] Pre-save Error:', error);
@@ -180,7 +181,9 @@ router.post('/webhook', async (req, res) => {
     const signature = req.headers['x-razorpay-signature'];
     const clientIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
 
-    console.log(`[WEBHOOK] Received from IP: ${clientIp}`);
+    console.log(`[WEBHOOK] Incoming from IP: ${clientIp}`);
+    console.log(`[WEBHOOK] Signature: ${signature ? 'PRESENT' : 'MISSING'}`);
+    console.log(`[WEBHOOK] Secret Configured: ${secret ? 'YES' : 'NO'}`);
 
     try {
         const shasum = crypto.createHmac('sha256', secret);
@@ -193,12 +196,15 @@ router.post('/webhook', async (req, res) => {
         }
 
         const { event, payload } = req.body;
-        console.log(`[WEBHOOK] Event: ${event}`);
+        console.log(`[WEBHOOK] Verified signature for event: ${event}`);
 
-        if (event === 'payment.captured') {
-            const payment = payload.payment.entity;
-            const rzp_order_id = payment.order_id;
-            const rzp_payment_id = payment.id;
+        // Handle both payment.captured and order.paid for maximum reliability
+        if (event === 'payment.captured' || event === 'order.paid') {
+            const payment = event === 'payment.captured' ? payload.payment.entity : payload.order.entity;
+            const rzp_order_id = event === 'payment.captured' ? payment.order_id : payment.id;
+            const rzp_payment_id = event === 'payment.captured' ? payment.id : 'LINKED_TO_ORDER';
+
+            console.log(`[WEBHOOK] Processing RZP Order ID: ${rzp_order_id}`);
 
             const order = await Order.findOne({ razorpayOrderId: rzp_order_id }).populate('user', 'email name');
 

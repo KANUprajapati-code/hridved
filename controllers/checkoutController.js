@@ -14,9 +14,10 @@ export const createCheckoutOrder = async (req, res) => {
             itemsPrice,
             shippingPrice,
             totalPrice,
+            paymentMethod = 'Razorpay',
         } = req.body;
 
-        console.log(`[CHECKOUT] Creating Order for User: ${req.user._id}`);
+        console.log(`[CHECKOUT] Creating Order for User: ${req.user._id}, Method: ${paymentMethod}`);
 
         // Validation
         if (!addressId || !deliveryOption || !orderItems || orderItems.length === 0) {
@@ -65,10 +66,23 @@ export const createCheckoutOrder = async (req, res) => {
             taxPrice,
             shippingPrice,
             totalPrice: itemsPrice + taxPrice + shippingPrice,
-            paymentMethod: 'Razorpay',
+            paymentMethod: paymentMethod,
+            isPaid: false,
         });
 
         const createdOrder = await order.save();
+
+        // Clear cart for COD orders immediately
+        if (paymentMethod === 'COD') {
+            try {
+                const Cart = (await import('../models/Cart.js')).default;
+                await Cart.deleteOne({ user: req.user._id });
+                console.log(`[CHECKOUT] Cart cleared for COD order: ${createdOrder._id}`);
+            } catch (cartError) {
+                console.error('[CHECKOUT] Error clearing cart for COD:', cartError);
+            }
+        }
+
         console.log(`[CHECKOUT] Order Created: ${createdOrder._id}`);
         res.status(201).json({ success: true, data: createdOrder });
 
