@@ -109,8 +109,13 @@ router.post('/verify', async (req, res) => {
             console.log(`[ORDER] ${order._id} marked as PAID via Verification.`);
 
             // 2. Trigger Shipment (ONLY if just updated to paid)
-            const { processFshipShipment } = await import('../utils/fshipService.js');
-            await processFshipShipment(order._id);
+            try {
+                const { processFshipShipment } = await import('../utils/fshipService.js');
+                await processFshipShipment(order._id);
+            } catch (shipmentError) {
+                console.error(`[RAZORPAY] Fship Shipment Trigger Failed for Order ${order._id}:`, shipmentError.message);
+                // We do NOT throw here so that the verification response remains successful
+            }
         } else {
             console.log(`[RAZORPAY] Order ${order._id} already marked as paid. Skipping update.`);
         }
@@ -177,8 +182,12 @@ router.post('/webhook', async (req, res) => {
                 console.log(`[ORDER] ${order._id} marked as PAID via Webhook.`);
 
                 // Trigger Shipment (ONLY if just updated to paid)
-                const { processFshipShipment } = await import('../utils/fshipService.js');
-                await processFshipShipment(order._id);
+                try {
+                    const { processFshipShipment } = await import('../utils/fshipService.js');
+                    await processFshipShipment(order._id);
+                } catch (shipmentError) {
+                    console.error(`[WEBHOOK] Fship Shipment Trigger Failed for Order ${order._id}:`, shipmentError.message);
+                }
             } else {
                 console.log(`[WEBHOOK] Order ${order._id} already paid. Skipping shipment trigger.`);
             }
