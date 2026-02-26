@@ -9,6 +9,65 @@ import {
 } from '../utils/fshipService.js';
 import Order from '../models/Order.js';
 
+// @desc    Check Pincode Serviceability
+// @route   POST /api/shipping/serviceability
+// @access  Public
+export const checkServiceability = async (req, res) => {
+    const { pincode, sourcePincode = '383325' } = req.body;
+    try {
+        let shippingOptions = [];
+
+        try {
+            const data = await checkFshipServiceabilityService(sourcePincode, pincode);
+
+            // Fship returns availability data; transform it into our format
+            if (data && data.status === true) {
+                const available = data.availability || {};
+                if (available.surface !== false) {
+                    shippingOptions.push({
+                        type: 'Standard',
+                        days: '3-5',
+                        charge: 0,
+                        description: 'Standard Delivery (3-5 days)',
+                    });
+                }
+                if (available.air !== false) {
+                    shippingOptions.push({
+                        type: 'Express',
+                        days: '1-2',
+                        charge: 99,
+                        description: 'Express Delivery (1-2 days)',
+                    });
+                }
+            }
+        } catch (fshipError) {
+            console.warn('Fship serviceability check failed, using defaults:', fshipError.message);
+        }
+
+        // Always return at least the default options
+        if (shippingOptions.length === 0) {
+            shippingOptions = [
+                {
+                    type: 'Standard',
+                    days: '3-5',
+                    charge: 0,
+                    description: 'Standard Delivery (3-5 days)',
+                },
+                {
+                    type: 'Express',
+                    days: '1-2',
+                    charge: 99,
+                    description: 'Express Delivery (1-2 days)',
+                }
+            ];
+        }
+
+        res.json({ shippingOptions });
+    } catch (error) {
+        res.status(error.status || 500).json({ message: error.message, details: error.data });
+    }
+};
+
 // @desc    Create Fship Shipment (Manual or Auto)
 // @route   POST /api/shipping/create-shipment
 // @access  Private/Admin
