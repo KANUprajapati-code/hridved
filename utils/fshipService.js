@@ -9,24 +9,43 @@ const FSHIP_PICKUP_ID = process.env.FSHIP_PICKUP_ID || '0';
 const fshipClient = axios.create({
     baseURL: FSHIP_BASE_URL,
     timeout: 15000,
-    headers: {
-        'Content-Type': 'application/json',
-        'signature': FSHIP_KEY,
-    },
 });
 
-// Interceptor to log full URLs for debugging
+// Interceptor to log full URLs and handle headers dynamically
 fshipClient.interceptors.request.use((config) => {
     const fullUrl = `${config.baseURL}${config.url}`;
+
+    // Ensure we have a token
+    if (!FSHIP_KEY) {
+        console.warn('[SHIPMENT] WARNING: FSHIP_TOKEN is missing in environment!');
+    }
+
+    // Fship typically uses 'signature' header for the token
+    config.headers['Content-Type'] = 'application/json';
+    config.headers['signature'] = FSHIP_KEY;
+
+    // Add Authorization header as fallback/alternative if signature doesn't work
+    // Some Fship accounts use Bearer token pattern
+    config.headers['Authorization'] = `Bearer ${FSHIP_KEY}`;
+
     console.log(`Fship Request: [${config.method.toUpperCase()}] ${fullUrl}`);
+    console.log(`Fship Headers: signature: ${FSHIP_KEY.substring(0, 5)}..., Authorization: Bearer ${FSHIP_KEY.substring(0, 5)}...`);
+
     return config;
 });
 
-const formatAxiosError = (error) => ({
-    message: error.message,
-    status: error.response?.status,
-    data: error.response?.data,
-});
+const formatAxiosError = (error) => {
+    return {
+        message: error.message,
+        status: error.response?.status,
+        data: error.response?.data,
+        config: {
+            url: error.config?.url,
+            method: error.config?.method,
+            data: error.config?.data
+        }
+    };
+};
 
 /**
  * 1. Create Forward Order
@@ -187,7 +206,10 @@ export const processFshipShipment = async (orderId) => {
         await order.save();
         return { success: false, details: result };
     } catch (error) {
-        console.error(`[SHIPMENT] CRITICAL ERROR:`, error.message);
+        console.error(`[SHIPMENT] CRITICAL ERROR matching order ${orderId}:`, error.message);
+        if (error.data) {
+            console.error(`[SHIPMENT] Fship API Response Data:`, JSON.stringify(error.data, null, 2));
+        }
         throw error;
     }
 };

@@ -7,7 +7,7 @@
   "scripts": {
     "start": "node server.js",
     "server": "nodemon server.js",
-    "client": "npm run dev --prefix ../client",
+    "client": "npm run dev --prefix ../hridved-frontend",
     "dev": "run-p server client"
   },
   "keywords": [],

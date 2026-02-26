@@ -141,8 +141,18 @@ export const getLabels = async (req, res) => {
 // @route   GET /api/shipping/track/:waybill
 // @access  Public
 export const trackShipment = async (req, res) => {
-    const { waybill } = req.params;
+    let { waybill } = req.params;
     try {
+        // If the waybill matches a MongoDB ID pattern, try to find the order first
+        if (waybill && waybill.match(/^[0-9a-fA-F]{24}$/)) {
+            const order = await Order.findById(waybill);
+            if (order && order.waybill) {
+                waybill = order.waybill;
+            } else if (order) {
+                return res.status(400).json({ message: 'Order found but no Waybill assigned yet. Shipment might still be processing.' });
+            }
+        }
+
         const result = await getFshipShipmentSummary(waybill);
         if (result && result.status === true) {
             const summary = result.summary;
@@ -156,10 +166,18 @@ export const trackShipment = async (req, res) => {
             );
             res.json(summary);
         } else {
-            res.status(404).json({ message: 'Tracking info not found', details: result });
+            res.status(404).json({
+                message: 'Tracking info not found',
+                details: result?.error || result?.message || 'Invalid Waybill'
+            });
         }
     } catch (error) {
-        res.status(500).json({ message: 'Tracking error', error: error.message });
+        console.error("Tracking Error:", error);
+        res.status(error.status || 500).json({
+            message: 'Tracking error',
+            error: error.message,
+            details: error.data
+        });
     }
 };
 
