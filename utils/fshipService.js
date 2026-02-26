@@ -205,6 +205,9 @@ export const processFshipShipment = async (orderId) => {
         return { success: false, details: result };
     } catch (error) {
         console.error(`[SHIPMENT] CRITICAL ERROR matching order ${orderId}:`, error.message);
+        if (error.response?.headers) {
+            console.log('[SHIPMENT] Fship Response Headers:', JSON.stringify(error.response.headers, null, 2));
+        }
         if (error.data) {
             console.error(`[SHIPMENT] Fship API Response Data:`, JSON.stringify(error.data, null, 2));
         }
