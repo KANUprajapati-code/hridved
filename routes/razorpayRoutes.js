@@ -159,10 +159,12 @@ router.post('/verify', async (req, res) => {
             order.razorpaySignature = razorpay_signature;
             await order.save();
             console.log(`[ORDER] ${order._id} marked as PAID via Verification.`);
-        }
 
-        // 2. Trigger Shipment
-        await createShipment(order);
+            // 2. Trigger Shipment (ONLY if just updated to paid)
+            await createShipment(order);
+        } else {
+            console.log(`[RAZORPAY] Order ${order._id} already marked as paid. Skipping update.`);
+        }
 
         res.json({ success: true, message: 'Payment verified and order updated' });
     } catch (error) {
@@ -219,10 +221,12 @@ router.post('/webhook', async (req, res) => {
                 order.razorpaySignature = 'WEBHOOK_VERIFIED';
                 await order.save();
                 console.log(`[ORDER] ${order._id} marked as PAID via Webhook.`);
-            }
 
-            // Trigger Shipment
-            await createShipment(order);
+                // Trigger Shipment (ONLY if just updated to paid)
+                await createShipment(order);
+            } else {
+                console.log(`[WEBHOOK] Order ${order._id} already paid. Skipping shipment trigger.`);
+            }
         }
 
         res.json({ status: 'ok' });
