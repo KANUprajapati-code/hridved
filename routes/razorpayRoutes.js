@@ -21,8 +21,15 @@ router.post('/order', async (req, res) => {
     console.log(`[RAZORPAY] Create Order Request: Amount=${amount}, Receipt=${receipt}`);
 
     try {
-        if (!process.env.RAZORPAY_KEY_ID || !process.env.RAZORPAY_KEY_SECRET) {
-            throw new Error('Razorpay keys missing in environment variables');
+        const keyId = process.env.RAZORPAY_KEY_ID;
+        const keySecret = process.env.RAZORPAY_KEY_SECRET;
+
+        if (!keyId || keyId.includes('your_key_id') || !keySecret || keySecret.includes('your_razorpay_key_secret')) {
+            console.error('[RAZORPAY] ERROR: Keys are missing or are PLACEHOLDERS in .env');
+            return res.status(400).json({
+                success: false,
+                message: 'Razorpay keys are not configured. Please add real keys to .env file.'
+            });
         }
 
         const options = {
@@ -34,7 +41,7 @@ router.post('/order', async (req, res) => {
         const order = await razorpay.orders.create(options);
         res.status(201).json({ success: true, data: order });
     } catch (error) {
-        console.error('[RAZORPAY] Create Order Error:', error);
+        console.error('[RAZORPAY] Create Order CRITICAL Error:', error);
         res.status(500).json({ success: false, message: error.message });
     }
 });
