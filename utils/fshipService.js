@@ -2,36 +2,33 @@ import axios from 'axios';
 import dotenv from 'dotenv';
 dotenv.config();
 
-const FSHIP_BASE_URL = (process.env.FSHIP_BASE_URL || 'https://capi.fship.in').replace(/\/+$/, '');
-const FSHIP_KEY = process.env.FSHIP_SIGNATURE || '';
+const DEFAULT_BASE = 'https://api.fship.in';
+const FSHIP_BASE_URL = (process.env.FSHIP_BASE_URL || DEFAULT_BASE).replace(/\/+$/, '');
+const FSHIP_KEY = (process.env.FSHIP_SIGNATURE || process.env.FSHIP_API_KEY || '').trim();
 const FSHIP_PICKUP_ID = process.env.FSHIP_PICKUP_ID || '0';
+const FSHIP_AUTH_HEADER = process.env.FSHIP_AUTH_HEADER || 'signature';
 
-if (!process.env.FSHIP_BASE_URL || !process.env.FSHIP_SIGNATURE) {
-    console.warn('[SHIPMENT] WARNING: FSHIP environment variables are not set. This will cause 401 errors later.');
+if (!FSHIP_KEY) {
+    console.warn('[SHIPMENT] WARNING: FSHIP API key/signature is not set (FSHIP_SIGNATURE or FSHIP_API_KEY). Requests will likely 401.');
 }
 
 const fshipClient = axios.create({
-    baseURL: FSHIP_BASE_URL || 'https://capi.fship.in',
+    baseURL: FSHIP_BASE_URL,
     timeout: 15000,
 });
 
-// Interceptor to handle headers and log requests
+// Interceptor to handle headers and improved request logging
 fshipClient.interceptors.request.use((config) => {
     const fullUrl = `${config.baseURL}${config.url}`;
 
-    // Ensure we have a token and it's trimmed
-    const cleanToken = (FSHIP_KEY || '').trim();
-
-    if (!cleanToken) {
-        console.warn('[SHIPMENT] WARNING: FSHIP_TOKEN is missing!');
-    }
-
-    // Fship documentation confirmed: use 'signature' header
+    // Use configured header name
     config.headers['Content-Type'] = 'application/json';
-    config.headers['signature'] = cleanToken;
+    if (FSHIP_KEY) config.headers[FSHIP_AUTH_HEADER] = FSHIP_KEY;
 
-    console.log(`Fship Request: [${config.method.toUpperCase()}] ${fullUrl}`);
-    console.log(`Fship Auth: signature header length is ${cleanToken.length} chars (starts with ${cleanToken.substring(0, 5)}...)`);
+    const bodyPreview = config.data ? (typeof config.data === 'string' ? config.data : JSON.stringify(config.data)) : '';
+    console.log(`Fship Request: [${(config.method || 'POST').toUpperCase()}] ${fullUrl}`);
+    console.log(`Fship Auth: header '${FSHIP_AUTH_HEADER}' length=${FSHIP_KEY.length}`);
+    if (bodyPreview) console.log(`Fship Body Preview: ${bodyPreview.substring(0, 512)}`);
 
     return config;
 });
@@ -55,7 +52,8 @@ const formatAxiosError = (error) => {
  */
 export const createFshipForwardOrder = async (orderData) => {
     try {
-        const response = await fshipClient.post('/api/createforwardorder', orderData);
+        const path = process.env.FSHIP_PATH_CREATE_FORWARD_ORDER || '/api/createforwardorder';
+        const response = await fshipClient.post(path, orderData);
         return response.data;
     } catch (error) {
         throw formatAxiosError(error);
@@ -68,7 +66,8 @@ export const createFshipForwardOrder = async (orderData) => {
  */
 export const getFshipShipmentSummary = async (waybill) => {
     try {
-        const response = await fshipClient.post('/api/shipmentsummary', { waybill });
+        const path = process.env.FSHIP_PATH_SHIPMENT_SUMMARY || '/api/shipmentsummary';
+        const response = await fshipClient.post(path, { waybill });
         return response.data;
     } catch (error) {
         throw formatAxiosError(error);
@@ -81,7 +80,8 @@ export const getFshipShipmentSummary = async (waybill) => {
  */
 export const getFshipTrackingHistory = async (waybill) => {
     try {
-        const response = await fshipClient.post('/api/trackinghistory', { waybill });
+        const path = process.env.FSHIP_PATH_TRACKING_HISTORY || '/api/trackinghistory';
+        const response = await fshipClient.post(path, { waybill });
         return response.data;
     } catch (error) {
         throw formatAxiosError(error);
@@ -94,7 +94,8 @@ export const getFshipTrackingHistory = async (waybill) => {
  */
 export const registerFshipPickup = async (waybills) => {
     try {
-        const response = await fshipClient.post('/api/registerpickup', { waybills });
+        const path = process.env.FSHIP_PATH_REGISTER_PICKUP || '/api/registerpickup';
+        const response = await fshipClient.post(path, { waybills });
         return response.data;
     } catch (error) {
         throw formatAxiosError(error);
@@ -107,7 +108,8 @@ export const registerFshipPickup = async (waybills) => {
  */
 export const getFshipShippingLabelByPickupId = async (pickupOrderId) => {
     try {
-        const response = await fshipClient.post('/api/shippinglabelbypickupid', { pickupOrderId });
+        const path = process.env.FSHIP_PATH_SHIPPING_LABEL_BY_PICKUP_ID || '/api/shippinglabelbypickupid';
+        const response = await fshipClient.post(path, { pickupOrderId });
         return response.data;
     } catch (error) {
         throw formatAxiosError(error);
@@ -120,7 +122,8 @@ export const getFshipShippingLabelByPickupId = async (pickupOrderId) => {
  */
 export const createFshipReverseOrder = async (reverseOrderData) => {
     try {
-        const response = await fshipClient.post('/api/createreverseorder', reverseOrderData);
+        const path = process.env.FSHIP_PATH_CREATE_REVERSE_ORDER || '/api/createreverseorder';
+        const response = await fshipClient.post(path, reverseOrderData);
         return response.data;
     } catch (error) {
         throw formatAxiosError(error);
@@ -132,10 +135,15 @@ export const createFshipReverseOrder = async (reverseOrderData) => {
  */
 export const checkFshipServiceability = async (sourcePincode, destinationPincode) => {
     try {
-        const response = await fshipClient.post('/api/pincodeserviceability', {
+        const path = process.env.FSHIP_PATH_SERVICEABILITY || '/v1/courier/serviceability';
+        // Many APIs use camelCase; include both variants if needed by server (harmless extra fields in most cases)
+        const payload = {
             source_Pincode: sourcePincode,
-            destination_Pincode: destinationPincode
-        });
+            destination_Pincode: destinationPincode,
+            sourcePincode: sourcePincode,
+            destinationPincode: destinationPincode
+        };
+        const response = await fshipClient.post(path, payload);
         return response.data;
     } catch (error) {
         throw formatAxiosError(error);
@@ -181,8 +189,8 @@ export const processFshipShipment = async (orderId) => {
             shipment_Length: 10,
             shipment_Width: 10,
             shipment_Height: 10,
-            pick_Address_ID: process.env.FSHIP_PICKUP_ID || 0,
-            return_Address_ID: process.env.FSHIP_PICKUP_ID || 0,
+            pick_Address_ID: process.env.FSHIP_PICKUP_ID || FSHIP_PICKUP_ID,
+            return_Address_ID: process.env.FSHIP_PICKUP_ID || FSHIP_PICKUP_ID,
             products: order.orderItems.map(item => ({
                 productName: item.name,
                 unitPrice: item.price,
@@ -190,7 +198,7 @@ export const processFshipShipment = async (orderId) => {
                 sku: String(item.product)
             }))
         };
-
+        
         const result = await createFshipForwardOrder(payload);
 
         if (result && result.status === true) {
