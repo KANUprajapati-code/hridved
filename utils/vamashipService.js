@@ -33,11 +33,11 @@ const formatVamashipError = (error) => {
 
 /**
  * Get Shipping Rates
- * Docs: POST /shipments/rates
+ * Docs: POST /shipments/quotes
  */
 export const getVamashipRates = async (rateData) => {
     try {
-        const response = await vamashipClient.post('/shipments/rates', rateData);
+        const response = await vamashipClient.post('/shipments/quotes', rateData);
         return response.data;
     } catch (error) {
         throw formatVamashipError(error);

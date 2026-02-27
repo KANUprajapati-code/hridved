@@ -58,10 +58,28 @@ export const checkServiceability = async (req, res) => {
         if (config.shipping.vamashipEnabled) {
             try {
                 const vamashipPayload = {
-                    origin_pincode: sourcePincode,
-                    destination_pincode: pincode,
+                    type: "prepaid",
+                    subtype: "general",
+                    origin: sourcePincode,
+                    destination: pincode,
                     weight: 0.5,
-                    payment_mode: 'Prepaid'
+                    seller: {
+                        name: "Hridved Ayurveda",
+                        pincode: sourcePincode,
+                        city: "Dhansura",
+                        state: "Gujarat",
+                        country: "India",
+                        phone: "9876543210",
+                        email: "hridved@gmail.com",
+                        address: "Plot No. 123, Modasa Road"
+                    },
+                    shipments: [{
+                        weight: 0.5,
+                        length: 10,
+                        width: 10,
+                        height: 10,
+                        value: 500
+                    }]
                 };
                 const vamashipData = await getVamashipRates(vamashipPayload);
 
@@ -78,6 +96,9 @@ export const checkServiceability = async (req, res) => {
                 }
             } catch (vamashipError) {
                 console.warn('Vamaship rates check failed:', vamashipError.message);
+                if (vamashipError.data) {
+                    console.warn('Vamaship Error Data:', JSON.stringify(vamashipError.data, null, 2));
+                }
             }
         }
 
