@@ -8,10 +8,21 @@ dotenv.config();
 
 const router = express.Router();
 
-const razorpay = new Razorpay({
-    key_id: process.env.RAZORPAY_KEY_ID,
-    key_secret: process.env.RAZORPAY_KEY_SECRET,
-});
+// Helper to get Razorpay instance with fresh env vars
+const getRazorpayInstance = () => {
+    const key_id = process.env.RAZORPAY_KEY_ID;
+    const key_secret = process.env.RAZORPAY_KEY_SECRET;
+
+    if (!key_id || !key_secret || key_id === 'your_key_id' || key_secret === 'your_razorpay_key_secret') {
+        console.error('[RAZORPAY] CRITICAL: Keys missing or invalid in process.env');
+        return null;
+    }
+
+    return new Razorpay({
+        key_id,
+        key_secret,
+    });
+};
 
 
 // @desc    Create Razorpay Order
@@ -21,22 +32,13 @@ router.post('/order', async (req, res) => {
     console.log(`[RAZORPAY] Create Order Request: Amount=${amount}, Receipt=${receipt}`);
 
     try {
-        const keyId = process.env.RAZORPAY_KEY_ID;
-        const keySecret = process.env.RAZORPAY_KEY_SECRET;
-
-        if (!keyId || keyId.includes('your_key_id') || !keySecret || keySecret.includes('your_razorpay_key_secret')) {
-            console.error('[RAZORPAY] ERROR: Keys are missing or are PLACEHOLDERS in .env');
-            return res.status(400).json({
+        const razorpay = getRazorpayInstance();
+        if (!razorpay) {
+            return res.status(500).json({
                 success: false,
-                message: 'Razorpay keys are not configured. Please add real keys to .env file.'
+                message: 'Razorpay is not configured on the server. Please check environment variables.'
             });
         }
-
-        const options = {
-            amount: Math.round(amount * 100), // Ensure it's an integer
-            currency,
-            receipt,
-        };
 
         const order = await razorpay.orders.create(options);
         res.status(201).json({ success: true, data: order });

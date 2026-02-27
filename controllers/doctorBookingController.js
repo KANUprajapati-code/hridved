@@ -3,10 +3,18 @@ import Doctor from '../models/Doctor.js';
 import Razorpay from 'razorpay';
 import crypto from 'crypto';
 
-const razorpay = new Razorpay({
-    key_id: process.env.RAZORPAY_KEY_ID,
-    key_secret: process.env.RAZORPAY_KEY_SECRET,
-});
+// Helper to get Razorpay instance
+const getRazorpayInstance = () => {
+    const key_id = process.env.RAZORPAY_KEY_ID;
+    const key_secret = process.env.RAZORPAY_KEY_SECRET;
+
+    if (!key_id || !key_secret) {
+        console.error('[DOCTOR-BOOKING] Razorpay keys missing in environment');
+        return null;
+    }
+
+    return new Razorpay({ key_id, key_secret });
+};
 
 // @desc    Initiate doctor booking payment
 // @route   POST /api/payment/doctor-booking
@@ -31,14 +39,15 @@ const initiateBookingPayment = async (req, res, next) => {
             return res.status(400).json({ message: 'Missing required fields' });
         }
 
-        // Create Razorpay order
-        const options = {
-            amount: amount * 100, // Razorpay expects amount in paise
-            currency: 'INR',
-            receipt: `doctor-booking-${Date.now()}`,
-        };
+        const razorpay = getRazorpayInstance();
+        if (!razorpay) {
+            return res.status(500).json({ message: 'Payment gateway not configured' });
+        }
 
         const order = await razorpay.orders.create(options);
+        if (!order) {
+            throw new Error('Failed to create Razorpay order');
+        }
 
         // Create pending booking record
         const booking = new DoctorBooking({
