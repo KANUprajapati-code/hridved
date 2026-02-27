@@ -1,4 +1,4 @@
-import * as fshipService from '../services/fshipService.js';
+import * as fshipService from '../utils/fshipService.js';
 
 /**
  * Create a new Fship Forward Order
