@@ -13,6 +13,7 @@ const addOrderItems = async (req, res) => {
         taxPrice,
         shippingPrice,
         totalPrice,
+        shippingProvider,
     } = req.body;
 
     if (orderItems && orderItems.length === 0) {
@@ -28,6 +29,7 @@ const addOrderItems = async (req, res) => {
             taxPrice,
             shippingPrice,
             totalPrice,
+            shippingProvider,
         });
 
         const createdOrder = await order.save();

@@ -3,124 +3,214 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 const VAMASHIP_BASE_URL = (process.env.VAMASHIP_BASE_URL || 'https://api.vamaship.com/ecom/v1').replace(/\/+$/, '');
-const VAMASHIP_API_TOKEN = process.env.VAMASHIP_API_TOKEN || '';
+const VAMASHIP_TOKEN = process.env.VAMASHIP_TOKEN || '';
 
-const vamashipClient = axios.create({
+export const vamashipClient = axios.create({
     baseURL: VAMASHIP_BASE_URL,
     timeout: 15000,
     headers: {
         'Content-Type': 'application/json',
-        'Access-Token': VAMASHIP_API_TOKEN,
-    },
+        'X-Vamaship-Token': VAMASHIP_TOKEN
+    }
 });
 
-// Interceptor to log full URLs for debugging
-vamashipClient.interceptors.request.use((config) => {
-    const fullUrl = `${config.baseURL}${config.url}`;
-    console.log(`Vamaship Request: [${config.method.toUpperCase()}] ${fullUrl}`);
-    return config;
-});
-
-const formatAxiosError = (error) => ({
-    message: error.message,
-    status: error.response?.status,
-    data: error.response?.data,
-});
+// Helper to format errors
+const formatVamashipError = (error) => {
+    return {
+        message: error.message,
+        status: error.response?.status,
+        data: error.response?.data,
+        config: {
+            url: error.config?.url,
+            method: error.config?.method
+        }
+    };
+};
 
 /**
- * Check Pincode Coverage / Serviceability
- * @param {string} pincode - Destination pincode
- * @param {string} originPincode - Pickup pincode (defaults to seller's pincode)
- * @param {string} type - 'prepaid' or 'cod'
+ * Get Shipping Rates
+ * Docs: POST /shipments/rates
  */
-export const checkVamashipServiceability = async (pincode, originPincode = '380001', type = 'prepaid') => {
+export const getVamashipRates = async (rateData) => {
     try {
-        const response = await vamashipClient.get('/pincode_coverage', {
-            params: {
-                pincode,
-                origin_pincode: originPincode,
-                type: type.toLowerCase()
-            }
-        });
+        const response = await vamashipClient.post('/shipments/rates', rateData);
         return response.data;
     } catch (error) {
-        const err = formatAxiosError(error);
-        console.error('Vamaship serviceability error:', err);
-        throw err;
+        throw formatVamashipError(error);
     }
 };
 
 /**
- * Create / Book Shipment
- * @param {Object} order - Order object from database
+ * Book Forward Shipment
+ * Docs: POST /shipments/book
  */
-export const createVamashipOrder = async (order) => {
-    if (!order) throw new Error('Order object is required');
-
-    const payload = {
-        seller: {
-            name: "Hridved Authentic Remedies",
-            phone: "9999999999", // Should come from config/env
-            email: "contact@hridved.in",
-            address: "Pickup Address Line 1",
-            city: "Ahmedabad",
-            state: "Gujarat",
-            country: "India",
-            pincode: "380001"
-        },
-        shipments: [
-            {
-                order_id: order._id?.toString() || String(order._id),
-                consignee: {
-                    name: order.shippingAddress.fullName,
-                    phone: order.shippingAddress.mobileNumber,
-                    email: order.user?.email || "",
-                    address: `${order.shippingAddress.houseNumber} ${order.shippingAddress.landmark || ''}`.trim(),
-                    city: order.shippingAddress.city,
-                    state: order.shippingAddress.state,
-                    country: "India",
-                    pincode: order.shippingAddress.pincode
-                },
-                shipment_details: {
-                    payment_mode: order.paymentMethod === 'COD' ? 'cod' : 'prepaid',
-                    cod_amount: order.paymentMethod === 'COD' ? order.totalPrice : 0,
-                    total_value: order.totalPrice,
-                    weight: 0.5, // Default weight
-                    length: 10,
-                    width: 10,
-                    height: 10,
-                    contents: order.orderItems.map(item => item.name).join(', ')
-                }
-            }
-        ]
-    };
-
+export const createVamashipForwardOrder = async (shipmentData) => {
     try {
-        const response = await vamashipClient.post('/book_shipment', payload);
+        const response = await vamashipClient.post('/shipments/book', shipmentData);
         return response.data;
     } catch (error) {
-        const err = formatAxiosError(error);
-        console.error('Vamaship create shipment error:', err);
-        throw err;
+        throw formatVamashipError(error);
     }
 };
 
 /**
  * Track Shipment
- * @param {string} trackingId - AWB or Order ID
+ * Docs: GET /shipments/track
  */
-export const trackVamashipShipment = async (trackingId) => {
+export const trackVamashipShipment = async (awb) => {
     try {
-        const response = await vamashipClient.get('/tracking', {
-            params: {
-                track_id: trackingId
-            }
-        });
+        const response = await vamashipClient.get(`/shipments/track?awb=${awb}`);
         return response.data;
     } catch (error) {
-        const err = formatAxiosError(error);
-        console.error('Vamaship tracking error:', err);
-        throw err;
+        throw formatVamashipError(error);
+    }
+};
+
+/**
+ * Cancel Shipment
+ * Docs: POST /shipments/cancel
+ */
+export const cancelVamashipShipment = async (awb) => {
+    try {
+        const response = await vamashipClient.post('/shipments/cancel', { awb });
+        return response.data;
+    } catch (error) {
+        throw formatVamashipError(error);
+    }
+};
+
+/**
+ * Process Vamaship Shipment Helpber
+ */
+export const processVamashipShipment = async (orderId) => {
+    try {
+        const Order = (await import('../models/Order.js')).default;
+        const order = await Order.findById(orderId).populate('user', 'email name');
+
+        if (!order) throw new Error('Order not found');
+        if (order.waybill) {
+            console.log(`[VAMASHIP] Already exists for Order: ${order._id}. Skipping.`);
+            return { success: true, waybill: order.waybill };
+        }
+
+        console.log(`[VAMASHIP] Initiating Vamaship booking for: ${order._id}`);
+
+        // Prepare Vamaship payload based on documentation
+        const payload = {
+            seller: {
+                name: "Hridved Ayurveda",
+                phone: "9876543210", // Placeholder
+                email: "hridved@gmail.com",
+                address: "Plot No. 123, Modasa Road",
+                city: "Dhansura",
+                state: "Gujarat",
+                pincode: process.env.VAMASHIP_PICKUP_PINCODE || "383325",
+                country: "India"
+            },
+            shipments: [{
+                type: order.paymentMethod === 'COD' ? 'cod' : 'prepaid',
+                subtype: "general",
+                consignee: {
+                    name: order.shippingAddress.fullName,
+                    phone: order.shippingAddress.mobileNumber,
+                    email: order.user?.email || 'customer@example.com',
+                    address: order.shippingAddress.houseNumber,
+                    city: order.shippingAddress.city,
+                    state: order.shippingAddress.state,
+                    pincode: order.shippingAddress.pincode,
+                    country: "India"
+                },
+                order_id: order.orderId || `ORD${Date.now()}`,
+                total_value: Math.round(order.totalPrice),
+                item_details: order.orderItems.map(item => ({
+                    name: item.name,
+                    quantity: item.qty,
+                    value: item.price,
+                    weight: 0.5,
+                    length: 10,
+                    width: 10,
+                    height: 10
+                })),
+                is_cod: order.paymentMethod === 'COD'
+            }]
+        };
+
+        const result = await createVamashipForwardOrder(payload);
+
+        // Vamaship response typically contains shipments array
+        if (result && result.status === "success" && result.data?.shipments?.[0]) {
+            const shipData = result.data.shipments[0];
+            order.waybill = shipData.awb_number;
+            order.apiOrderId = shipData.vamaship_order_id;
+            order.shippingStatus = 'Shipped';
+            order.shippingProvider = 'Vamaship';
+            await order.save();
+            console.log(`[VAMASHIP] SUCCESS. AWB: ${shipData.awb_number}`);
+            return { success: true, waybill: shipData.awb_number };
+        }
+
+        console.error(`[VAMASHIP] API Failure:`, result);
+        order.shippingStatus = 'Shipping Pending';
+        await order.save();
+        return { success: false, details: result };
+    } catch (error) {
+        console.error(`[VAMASHIP] CRITICAL ERROR matching order ${orderId}:`, error.message);
+        throw error;
+    }
+};
+
+/**
+ * Process Vamaship Reverse Shipment
+ */
+export const processVamashipReverseShipment = async (forwardWaybill) => {
+    try {
+        const Order = (await import('../models/Order.js')).default;
+        const forwardOrder = await Order.findOne({ waybill: forwardWaybill });
+
+        if (!forwardOrder) throw new Error('Forward order not found');
+
+        const payload = {
+            seller: {
+                name: forwardOrder.shippingAddress.fullName,
+                phone: forwardOrder.shippingAddress.mobileNumber,
+                email: "customer@example.com",
+                address: forwardOrder.shippingAddress.houseNumber,
+                city: forwardOrder.shippingAddress.city,
+                state: forwardOrder.shippingAddress.state,
+                pincode: forwardOrder.shippingAddress.pincode,
+                country: "India"
+            },
+            shipments: [{
+                type: "reverse",
+                subtype: "general",
+                consignee: {
+                    name: "Hridved Ayurveda",
+                    phone: "9876543210",
+                    email: "hridved@gmail.com",
+                    address: "Plot No. 123, Modasa Road",
+                    city: "Dhansura",
+                    state: "Gujarat",
+                    pincode: process.env.VAMASHIP_PICKUP_PINCODE || "383325",
+                    country: "India"
+                },
+                order_id: "REV" + (forwardOrder.orderId || forwardOrder._id),
+                total_value: Math.round(forwardOrder.totalPrice),
+                item_details: forwardOrder.orderItems.map(item => ({
+                    name: item.name,
+                    quantity: item.qty,
+                    value: item.price,
+                    weight: 0.5,
+                    length: 10,
+                    width: 10,
+                    height: 10
+                }))
+            }]
+        };
+
+        return await createVamashipForwardOrder(payload);
+    } catch (error) {
+        console.error(`[VAMASHIP] Reverse Error:`, error.message);
+        throw error;
     }
 };
 

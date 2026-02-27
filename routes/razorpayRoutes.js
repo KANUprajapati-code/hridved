@@ -131,11 +131,17 @@ router.post('/verify', async (req, res) => {
 
             // 2. Trigger Shipment (ONLY if just updated to paid)
             try {
-                const { processFshipShipment } = await import('../utils/fshipService.js');
-                await processFshipShipment(order._id);
+                if (order.shippingProvider === 'Vamaship') {
+                    const { processVamashipShipment } = await import('../utils/vamashipService.js');
+                    await processVamashipShipment(order._id);
+                    console.log(`[RAZORPAY] Vamaship shipment initiated for Order ${order._id}`);
+                } else {
+                    const { processFshipShipment } = await import('../utils/fshipService.js');
+                    await processFshipShipment(order._id);
+                    console.log(`[RAZORPAY] Fship shipment initiated for Order ${order._id}`);
+                }
             } catch (shipmentError) {
-                console.error(`[RAZORPAY] Fship Shipment Trigger Failed for Order ${order._id}:`, shipmentError.message);
-                // We do NOT throw here so that the verification response remains successful
+                console.error(`[RAZORPAY] Shipment Trigger Failed for Order ${order._id}:`, shipmentError.message);
             }
         } else {
             console.log(`[RAZORPAY] Order ${order._id} already marked as paid. Skipping update.`);
@@ -216,11 +222,17 @@ router.post('/webhook', async (req, res) => {
 
             // 3. (Optional) Trigger post-payment actions like Fship
             try {
-                const { processFshipShipment } = await import('../utils/fshipService.js');
-                await processFshipShipment(order._id);
-                console.log(`[WEBHOOK] Fship shipment initiated for Order ${order._id}`);
-            } catch (fshipErr) {
-                console.warn(`[WEBHOOK] Fship trigger non-fatal error: ${fshipErr.message}`);
+                if (order.shippingProvider === 'Vamaship') {
+                    const { processVamashipShipment } = await import('../utils/vamashipService.js');
+                    await processVamashipShipment(order._id);
+                    console.log(`[WEBHOOK] Vamaship shipment initiated for Order ${order._id}`);
+                } else {
+                    const { processFshipShipment } = await import('../utils/fshipService.js');
+                    await processFshipShipment(order._id);
+                    console.log(`[WEBHOOK] Fship shipment initiated for Order ${order._id}`);
+                }
+            } catch (shipmentErr) {
+                console.warn(`[WEBHOOK] Shipment trigger non-fatal error: ${shipmentErr.message}`);
             }
 
             // 4. (Optional) Clear Cart if possible (Webhooks have no session, so we rely on finding cart by user ID)

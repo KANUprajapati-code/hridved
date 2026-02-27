@@ -15,6 +15,7 @@ export const createCheckoutOrder = async (req, res) => {
             shippingPrice,
             totalPrice,
             paymentMethod = 'Razorpay',
+            shippingProvider = 'Fship',
         } = req.body;
 
         console.log(`[CHECKOUT] Creating Order for User: ${req.user._id}, Method: ${paymentMethod}`);
@@ -67,6 +68,7 @@ export const createCheckoutOrder = async (req, res) => {
             shippingPrice,
             totalPrice: itemsPrice + taxPrice + shippingPrice,
             paymentMethod: paymentMethod,
+            shippingProvider: shippingProvider,
             isPaid: false,
         });
 
@@ -85,11 +87,17 @@ export const createCheckoutOrder = async (req, res) => {
 
             // 2. Trigger Shipment Creation
             try {
-                const { processFshipShipment } = await import('../utils/fshipService.js');
-                await processFshipShipment(createdOrder._id);
-                console.log(`[CHECKOUT] Shipment triggered for COD order: ${createdOrder._id}`);
+                if (createdOrder.shippingProvider === 'Vamaship') {
+                    const { processVamashipShipment } = await import('../utils/vamashipService.js');
+                    await processVamashipShipment(createdOrder._id);
+                    console.log(`[CHECKOUT] Vamaship Shipment triggered for COD order: ${createdOrder._id}`);
+                } else {
+                    const { processFshipShipment } = await import('../utils/fshipService.js');
+                    await processFshipShipment(createdOrder._id);
+                    console.log(`[CHECKOUT] Fship Shipment triggered for COD order: ${createdOrder._id}`);
+                }
             } catch (shipmentError) {
-                console.error('[CHECKOUT] Fship Shipment Error for COD:', shipmentError.message);
+                console.error(`[CHECKOUT] Shipment Error for COD (${createdOrder.shippingProvider}):`, shipmentError.message);
             }
         }
 
