@@ -1,9 +1,15 @@
 import axios from 'axios';
 import dotenv from 'dotenv';
 import https from 'https';
-dotenv.config();
+import path from 'path';
+import { fileURLToPath } from 'url';
 
-const VAMASHIP_BASE_URL = (process.env.VAMASHIP_BASE_URL || 'https://ecom3stagingapi.vamaship.com/ecom/api/v1').replace(/\/+$/, '');
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+dotenv.config({ path: path.join(__dirname, '../.env') });
+
+const VAMASHIP_BASE_URL = (process.env.VAMASHIP_BASE_URL || 'https://ecom3stagingapi.vamaship.com/ecom/v1').replace(/\/+$/, '');
 const VAMASHIP_TOKEN = process.env.VAMASHIP_TOKEN || 'nsaGISQu2jnUy3cpxZk0VI4XdkOgUmDKwU426JtN3';
 
 export const vamashipClient = axios.create({

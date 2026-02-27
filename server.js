@@ -162,6 +162,7 @@ const startServer = async () => {
   try {
     await connectDB();
     initTrackingCron(); // Start automated tracking updates
+    console.log(`[VAMASHIP] Final Config - BaseURL: ${process.env.VAMASHIP_BASE_URL || 'Falling back to staging'}`);
     app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
   } catch (error) {
     console.error(`Error: ${error.message}`);
