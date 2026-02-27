@@ -13,6 +13,19 @@ const getRazorpayInstance = () => {
     const key_id = process.env.RAZORPAY_KEY_ID;
     const key_secret = process.env.RAZORPAY_KEY_SECRET;
 
+    // Securely log key presence and format for debugging 401 errors
+    if (key_id) {
+        console.log(`[RAZORPAY] Key ID found: ${key_id.substring(0, 4)}...${key_id.substring(key_id.length - 4)} (Length: ${key_id.length})`);
+    } else {
+        console.warn('[RAZORPAY] Key ID is MISSING');
+    }
+
+    if (key_secret) {
+        console.log(`[RAZORPAY] Key Secret found (Length: ${key_secret.length})`);
+    } else {
+        console.warn('[RAZORPAY] Key Secret is MISSING');
+    }
+
     if (!key_id || !key_secret || key_id === 'your_key_id' || key_secret === 'your_razorpay_key_secret') {
         console.error('[RAZORPAY] CRITICAL: Keys missing or invalid in process.env');
         return null;
