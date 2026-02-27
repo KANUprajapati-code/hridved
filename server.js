@@ -112,6 +112,7 @@ import aboutRoutes from './routes/aboutRoutes.js';
 import doctorBookingRoutes from './routes/doctorBookingRoutes.js';
 import couponRoutes from './routes/couponRoutes.js';
 import fshipRoutes from './routes/fshipRoutes.js';
+import configRoutes from './routes/configRoutes.js';
 import { notFound, errorHandler } from './middleware/errorMiddleware.js';
 
 app.use('/api/users', userRoutes);
@@ -136,6 +137,7 @@ app.use('/api/doctor-bookings', doctorBookingRoutes);
 app.use('/api/about', aboutRoutes);
 app.use('/api/coupons', couponRoutes);
 app.use('/api/fship', fshipRoutes);
+app.use('/api/config', configRoutes);
 
 import path from 'path';
 import { fileURLToPath } from 'url';

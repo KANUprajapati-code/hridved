@@ -13,7 +13,7 @@ import {
     trackVamashipShipment,
     processVamashipReverseShipment
 } from '../utils/vamashipService.js';
-import Order from '../models/Order.js';
+import SystemConfig from '../models/SystemConfig.js';
 
 // @desc    Check Pincode Serviceability
 // @route   POST /api/shipping/serviceability
@@ -22,57 +22,63 @@ export const checkServiceability = async (req, res) => {
     const { pincode, sourcePincode = '383325' } = req.body;
     try {
         let shippingOptions = [];
+        const config = await SystemConfig.findOne() || { shipping: { fshipEnabled: true, vamashipEnabled: true } };
 
-        try {
-            const data = await checkFshipServiceabilityService(sourcePincode, pincode);
+        // 1. Fship Rates
+        if (config.shipping.fshipEnabled) {
+            try {
+                const data = await checkFshipServiceabilityService(sourcePincode, pincode);
 
-            // Fship returns availability data; transform it into our format
-            if (data && data.status === true) {
-                const available = data.availability || {};
-                if (available.surface !== false) {
-                    shippingOptions.push({
-                        type: 'Standard',
-                        days: '3-5',
-                        charge: 0,
-                        description: 'Standard Delivery (3-5 days)',
-                    });
+                // Fship returns availability data; transform it into our format
+                if (data && data.status === true) {
+                    const available = data.availability || {};
+                    if (available.surface !== false) {
+                        shippingOptions.push({
+                            type: 'Standard',
+                            days: '3-5',
+                            charge: 0,
+                            description: 'Standard Delivery (3-5 days)',
+                        });
+                    }
+                    if (available.air !== false) {
+                        shippingOptions.push({
+                            type: 'Express',
+                            days: '1-2',
+                            charge: 99,
+                            description: 'Express Delivery (1-2 days)',
+                        });
+                    }
                 }
-                if (available.air !== false) {
-                    shippingOptions.push({
-                        type: 'Express',
-                        days: '1-2',
-                        charge: 99,
-                        description: 'Express Delivery (1-2 days)',
-                    });
-                }
+            } catch (fshipError) {
+                console.warn('Fship serviceability check failed:', fshipError.message);
             }
-        } catch (fshipError) {
-            console.warn('Fship serviceability check failed:', fshipError.message);
         }
 
         // 2. Vamaship Rates
-        try {
-            const vamashipPayload = {
-                origin_pincode: sourcePincode,
-                destination_pincode: pincode,
-                weight: 0.5,
-                payment_mode: 'Prepaid'
-            };
-            const vamashipData = await getVamashipRates(vamashipPayload);
+        if (config.shipping.vamashipEnabled) {
+            try {
+                const vamashipPayload = {
+                    origin_pincode: sourcePincode,
+                    destination_pincode: pincode,
+                    weight: 0.5,
+                    payment_mode: 'Prepaid'
+                };
+                const vamashipData = await getVamashipRates(vamashipPayload);
 
-            if (vamashipData && vamashipData.status === 'success' && vamashipData.data?.rates) {
-                vamashipData.data.rates.forEach(rate => {
-                    shippingOptions.push({
-                        type: rate.courier_name,
-                        days: rate.estimated_delivery_days || '3-5',
-                        charge: rate.total_charge,
-                        description: `${rate.courier_name} (${rate.estimated_delivery_days} days)`,
-                        provider: 'Vamaship'
+                if (vamashipData && vamashipData.status === 'success' && vamashipData.data?.rates) {
+                    vamashipData.data.rates.forEach(rate => {
+                        shippingOptions.push({
+                            type: rate.courier_name,
+                            days: rate.estimated_delivery_days || '3-5',
+                            charge: rate.total_charge,
+                            description: `${rate.courier_name} (${rate.estimated_delivery_days} days)`,
+                            provider: 'Vamaship'
+                        });
                     });
-                });
+                }
+            } catch (vamashipError) {
+                console.warn('Vamaship rates check failed:', vamashipError.message);
             }
-        } catch (vamashipError) {
-            console.warn('Vamaship rates check failed:', vamashipError.message);
         }
 
         // Always return at least the default options

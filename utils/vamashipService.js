@@ -1,5 +1,6 @@
 import axios from 'axios';
 import dotenv from 'dotenv';
+import https from 'https';
 dotenv.config();
 
 const VAMASHIP_BASE_URL = (process.env.VAMASHIP_BASE_URL || 'https://api.vamaship.com/ecom/v1').replace(/\/+$/, '');
@@ -11,7 +12,10 @@ export const vamashipClient = axios.create({
     headers: {
         'Content-Type': 'application/json',
         'X-Vamaship-Token': VAMASHIP_TOKEN
-    }
+    },
+    httpsAgent: new https.Agent({
+        rejectUnauthorized: false
+    })
 });
 
 // Helper to format errors
