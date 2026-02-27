@@ -40,6 +40,12 @@ router.post('/order', async (req, res) => {
             });
         }
 
+        const options = {
+            amount: Math.round(amount * 100), // Ensure it's an integer
+            currency,
+            receipt,
+        };
+
         const order = await razorpay.orders.create(options);
         res.status(201).json({ success: true, data: order });
     } catch (error) {

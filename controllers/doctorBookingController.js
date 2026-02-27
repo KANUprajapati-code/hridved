@@ -44,6 +44,12 @@ const initiateBookingPayment = async (req, res, next) => {
             return res.status(500).json({ message: 'Payment gateway not configured' });
         }
 
+        const options = {
+            amount: amount * 100, // Razorpay expects amount in paise
+            currency: 'INR',
+            receipt: `doctor-booking-${Date.now()}`,
+        };
+
         const order = await razorpay.orders.create(options);
         if (!order) {
             throw new Error('Failed to create Razorpay order');
