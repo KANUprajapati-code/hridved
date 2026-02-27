@@ -306,23 +306,51 @@ fshipClient.interceptors.response.use(null, async (error) => {
     const cfg = error.config;
 
     if (status === 401 && cfg && !cfg.__fship_retried) {
-        const candidates = ['', 'bearer ', 'Bearer '];
-        // Start from current prefix, then try others
-        const tried = new Set([String(FSHIP_AUTH_PREFIX || '')]);
+        // Log response body and headers for debugging
+        try {
+            console.log('[FSHIP 401 BODY]', JSON.stringify(error.response?.data || {}));
+            console.log('[FSHIP 401 HEADERS]', JSON.stringify(error.response?.headers || {}));
+        } catch (e) {
+            /* ignore logging errors */
+        }
 
-        for (const p of candidates) {
-            if (tried.has(p)) continue;
-            try {
-                const retryConfig = { ...cfg, __fship_retried: true };
-                retryConfig.headers = { ...retryConfig.headers };
-                retryConfig.headers[FSHIP_AUTH_HEADER] = `${p}${FSHIP_KEY}`;
-                console.log(`[FSHIP RETRY] Retrying ${retryConfig.method?.toUpperCase()} ${retryConfig.url} with prefix='${p}'`);
-                const resp = await fshipClient.request(retryConfig);
-                return resp;
-            } catch (err) {
-                // continue to next candidate
-                tried.add(p);
-                console.log(`[FSHIP RETRY] Prefix='${p}' failed: ${err.response?.status || err.message}`);
+        // Try multiple header-name + prefix combinations to probe accepted auth format
+        const prefixes = ['', 'bearer ', 'Bearer '];
+        const headerCandidates = [
+            FSHIP_AUTH_HEADER,
+            'Authorization',
+            'authorization',
+            'x-signature',
+            'x-api-key',
+            'token'
+        ];
+
+        const tried = new Set();
+
+        for (const headerName of headerCandidates) {
+            for (const p of prefixes) {
+                const key = `${headerName}::${p}`;
+                if (tried.has(key)) continue;
+                tried.add(key);
+                try {
+                    const retryConfig = { ...cfg, __fship_retried: true };
+                    retryConfig.headers = { ...retryConfig.headers };
+                    // remove any existing auth-like headers to avoid duplicates
+                    delete retryConfig.headers[FSHIP_AUTH_HEADER];
+                    delete retryConfig.headers['Authorization'];
+                    delete retryConfig.headers['authorization'];
+                    delete retryConfig.headers['x-signature'];
+                    delete retryConfig.headers['x-api-key'];
+                    delete retryConfig.headers['token'];
+
+                    retryConfig.headers[headerName] = `${p}${FSHIP_KEY}`;
+                    console.log(`[FSHIP RETRY] Trying header='${headerName}' prefix='${p}'`);
+                    const resp = await fshipClient.request(retryConfig);
+                    console.log(`[FSHIP RETRY] Success with header='${headerName}' prefix='${p}'`);
+                    return resp;
+                } catch (err) {
+                    console.log(`[FSHIP RETRY] header='${headerName}' prefix='${p}' failed: ${err.response?.status || err.message}`);
+                }
             }
         }
     }
