@@ -267,7 +267,11 @@ const fshipClient = axios.create({
     baseURL: FSHIP_BASE_URL,
     timeout: 20000,
 });
-
+   console.log("========== FSHIP DEBUG ==========");
+console.log("BASE URL:", FSHIP_BASE_URL);
+console.log("SIGNATURE EXISTS:", !!FSHIP_KEY);
+console.log("SIGNATURE LENGTH:", FSHIP_KEY?.length);
+console.log("=================================");
 /* ======================================================
    REQUEST INTERCEPTOR
 ====================================================== */
