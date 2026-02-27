@@ -254,6 +254,14 @@ const FSHIP_PICKUP_ID = Number(process.env.FSHIP_PICKUP_ID || 0);
 // Fship requires header name exactly: signature
 const FSHIP_AUTH_HEADER = 'signature';
 
+// Authentication prefix: allow overriding via env. If not set, default to
+// 'bearer ' for the production capi endpoint which often expects it.
+const FSHIP_AUTH_PREFIX = (
+    process.env.FSHIP_AUTH_PREFIX !== undefined
+        ? process.env.FSHIP_AUTH_PREFIX
+        : (FSHIP_BASE_URL.includes('capi.fship.in') ? 'bearer ' : '')
+);
+
 if (!FSHIP_KEY) {
     console.warn(
         '[FSHIP] WARNING: FSHIP_SIGNATURE is not set. Requests may fail with 401.'
@@ -274,13 +282,13 @@ const fshipClient = axios.create({
 fshipClient.interceptors.request.use((config) => {
     config.headers['Content-Type'] = 'application/json';
 
+
     if (FSHIP_KEY) {
-        // IMPORTANT: NO Bearer prefix
-        config.headers[FSHIP_AUTH_HEADER] = FSHIP_KEY;
+        config.headers[FSHIP_AUTH_HEADER] = `${FSHIP_AUTH_PREFIX || ''}${FSHIP_KEY}`;
     }
 
     console.log(`\n[FSHIP REQUEST] ${config.method?.toUpperCase()} ${config.baseURL}${config.url}`);
-    console.log(`[FSHIP HEADER] signature length: ${FSHIP_KEY.length}`);
+    console.log(`[FSHIP HEADER] signature length: ${FSHIP_KEY.length}, prefix: '${FSHIP_AUTH_PREFIX}'`);
 
     if (config.data) {
         console.log('[FSHIP BODY]', JSON.stringify(config.data, null, 2));
