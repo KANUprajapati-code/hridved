@@ -495,4 +495,6 @@ export const processFshipShipment = async (orderId) => {
     }
 };
 
+console.log("FSHIP KEY EXISTS:", !!FSHIP_KEY);
+console.log("FSHIP KEY LENGTH:", FSHIP_KEY.length);
 export default fshipClient;
