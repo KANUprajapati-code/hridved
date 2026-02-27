@@ -16,6 +16,9 @@ app.use(helmet());
 
 // Simple Request Logger for Production Debugging
 app.use((req, res, next) => {
+  if (req.url === '/favicon.ico' || req.url === '/favicon.png') {
+    return res.status(204).end();
+  }
   console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
   next();
 });
@@ -106,7 +109,7 @@ import checkoutRoutes from './routes/checkoutRoutes.js';
 import oauthRoutes from './routes/oauthRoutes.js';
 import adminRoutes from './routes/adminRoutes.js';
 import aboutRoutes from './routes/aboutRoutes.js';
-import doctorPaymentRoutes from './routes/doctorPaymentRoutes.js';
+import doctorBookingRoutes from './routes/doctorBookingRoutes.js';
 import couponRoutes from './routes/couponRoutes.js';
 import fshipRoutes from './routes/fshipRoutes.js';
 import { notFound, errorHandler } from './middleware/errorMiddleware.js';
@@ -129,7 +132,7 @@ app.use('/api/shipping', shippingRoutes);
 app.use('/api/addresses', addressRoutes);
 app.use('/api/checkout', checkoutRoutes);
 app.use('/api/admin', adminRoutes);
-app.use('/api/doctor-bookings', doctorPaymentRoutes);
+app.use('/api/doctor-bookings', doctorBookingRoutes);
 app.use('/api/about', aboutRoutes);
 app.use('/api/coupons', couponRoutes);
 app.use('/api/fship', fshipRoutes);

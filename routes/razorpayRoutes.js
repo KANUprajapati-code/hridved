@@ -153,11 +153,17 @@ router.post('/verify', async (req, res) => {
 router.post('/webhook', async (req, res) => {
     const secret = process.env.RAZORPAY_WEBHOOK_SECRET;
     const signature = req.headers['x-razorpay-signature'];
-    const clientIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
 
-    console.log(`[WEBHOOK] Incoming from IP: ${clientIp}`);
-    console.log(`[WEBHOOK] Signature: ${signature ? 'PRESENT' : 'MISSING'}`);
-    console.log(`[WEBHOOK] Secret Configured: ${secret ? 'YES' : 'NO'}`);
+    // We expect req.rawBody to be populated via server.js verify function
+    if (!req.rawBody) {
+        console.error('[WEBHOOK] CRITICAL: Raw body missing! Check server.js middleware.');
+        return res.status(500).json({ success: false, message: 'Internal server error' });
+    }
+
+    if (!secret) {
+        console.error('[WEBHOOK] CRITICAL: RAZORPAY_WEBHOOK_SECRET is not configured!');
+        return res.status(500).json({ success: false, message: 'Configuration error' });
+    }
 
     try {
         const shasum = crypto.createHmac('sha256', secret);
@@ -165,59 +171,72 @@ router.post('/webhook', async (req, res) => {
         const digest = shasum.digest('hex');
 
         if (digest !== signature) {
-            console.warn('[WEBHOOK] Invalid Signature Attempt!');
+            console.warn('[WEBHOOK] Signature Mismatch! Remote signature did not match local HMAC.');
             return res.status(400).json({ success: false, message: 'Invalid signature' });
         }
 
         const { event, payload } = req.body;
-        console.log(`[WEBHOOK] Verified signature for event: ${event}`);
+        console.log(`[WEBHOOK] Verified Signature. Event: ${event}`);
 
-        // Handle both payment.captured and order.paid for maximum reliability
+        // Handle payment capture or order payment completion
         if (event === 'payment.captured' || event === 'order.paid') {
-            const payment = event === 'payment.captured' ? payload.payment.entity : payload.order.entity;
-            const rzp_order_id = event === 'payment.captured' ? payment.order_id : payment.id;
-            const rzp_payment_id = event === 'payment.captured' ? payment.id : 'LINKED_TO_ORDER';
+            const entity = event === 'payment.captured' ? payload.payment.entity : payload.order.entity;
+            const rzp_order_id = event === 'payment.captured' ? entity.order_id : entity.id;
+            const rzp_payment_id = event === 'payment.captured' ? entity.id : (payload.payment?.entity?.id || 'WEBHOOK_PAID');
 
-            console.log(`[WEBHOOK] Processing RZP Order ID: ${rzp_order_id}`);
+            console.log(`[WEBHOOK] Processing Order Status: ${rzp_order_id}`);
 
             const order = await Order.findOne({ razorpayOrderId: rzp_order_id }).populate('user', 'email name');
 
             if (!order) {
-                console.error(`[WEBHOOK] Order NOT FOUND for RZP ID: ${rzp_order_id}`);
-                return res.status(200).json({ status: 'ok', message: 'Order not found, but webhook acknowledged' });
+                console.error(`[WEBHOOK] Order not found in DB for Razorpay ID: ${rzp_order_id}`);
+                return res.status(200).json({ status: 'ok', message: 'Order reference not found' });
             }
 
-            // Update if not paid
-            if (!order.isPaid) {
-                order.isPaid = true;
-                order.paidAt = Date.now();
-                order.paymentResult = {
-                    id: rzp_payment_id,
-                    status: 'succeeded',
-                    update_time: Date.now().toString(),
-                    email_address: order.user ? order.user.email : 'N/A',
-                };
-                order.razorpayPaymentId = rzp_payment_id;
-                order.razorpaySignature = 'WEBHOOK_VERIFIED';
-                await order.save();
-                console.log(`[ORDER] ${order._id} marked as PAID via Webhook.`);
+            // 1. Idempotency Check: Don't process if already paid
+            if (order.isPaid) {
+                console.log(`[WEBHOOK] Order ${order._id} already marked as paid. Skipping redundant update.`);
+                return res.status(200).json({ status: 'ok', message: 'Already processed' });
+            }
 
-                // Trigger Shipment (ONLY if just updated to paid)
-                try {
-                    const { processFshipShipment } = await import('../utils/fshipService.js');
-                    await processFshipShipment(order._id);
-                } catch (shipmentError) {
-                    console.error(`[WEBHOOK] Fship Shipment Trigger Failed for Order ${order._id}:`, shipmentError.message);
-                }
-            } else {
-                console.log(`[WEBHOOK] Order ${order._id} already paid. Skipping shipment trigger.`);
+            // 2. Update Order to Paid
+            order.isPaid = true;
+            order.paidAt = Date.now();
+            order.paymentResult = {
+                id: rzp_payment_id,
+                status: 'succeeded',
+                update_time: Date.now().toString(),
+                email_address: order.user ? order.user.email : 'N/A',
+            };
+            order.razorpayPaymentId = rzp_payment_id;
+            order.razorpaySignature = 'WEBHOOK_VERIFIED';
+
+            await order.save();
+            console.log(`[WEBHOOK] SUCCESS: Order ${order._id} successfully marked as PAID.`);
+
+            // 3. (Optional) Trigger post-payment actions like Fship
+            try {
+                const { processFshipShipment } = await import('../utils/fshipService.js');
+                await processFshipShipment(order._id);
+                console.log(`[WEBHOOK] Fship shipment initiated for Order ${order._id}`);
+            } catch (fshipErr) {
+                console.warn(`[WEBHOOK] Fship trigger non-fatal error: ${fshipErr.message}`);
+            }
+
+            // 4. (Optional) Clear Cart if possible (Webhooks have no session, so we rely on finding cart by user ID)
+            try {
+                const Cart = (await import('../models/Cart.js')).default;
+                await Cart.deleteOne({ user: order.user._id });
+                console.log(`[WEBHOOK] Cart cleared for User ${order.user._id}`);
+            } catch (cartErr) {
+                console.warn(`[WEBHOOK] Cart clear error (ignorable): ${cartErr.message}`);
             }
         }
 
-        res.json({ status: 'ok' });
+        return res.status(200).json({ status: 'ok' });
     } catch (error) {
-        console.error('[WEBHOOK] Process Error:', error);
-        res.status(500).json({ success: false, message: error.message });
+        console.error('[WEBHOOK] CRITICAL Execution Error:', error);
+        return res.status(500).json({ success: false, message: 'Internal server error' });
     }
 });
 
