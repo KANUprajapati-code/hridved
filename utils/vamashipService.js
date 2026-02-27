@@ -20,9 +20,15 @@ export const vamashipClient = axios.create({
 
 // Debug log for tokens (identifying placeholders)
 console.log(`[VAMASHIP] Client Configured. BaseURL: ${VAMASHIP_BASE_URL}`);
-if (VAMASHIP_TOKEN.startsWith('YOUR_')) {
-    console.warn(`[VAMASHIP] WARNING: VAMASHIP_TOKEN appears to be a placeholder!`);
-}
+
+vamashipClient.interceptors.request.use((config) => {
+    const token = config.headers['X-Vamaship-Token'] || '';
+    if (token.startsWith('YOUR_') || token.length === 26) {
+        console.warn(`[VAMASHIP] WARNING: Token might be a placeholder or incorrect length: ${token.substring(0, 5)}... (Length: ${token.length})`);
+    }
+    console.log(`[VAMASHIP] Request: ${config.method.toUpperCase()} ${config.baseURL}${config.url}`);
+    return config;
+});
 
 // Helper to format errors
 const formatVamashipError = (error) => {
@@ -39,11 +45,11 @@ const formatVamashipError = (error) => {
 
 /**
  * Get Shipping Rates
- * Docs: POST /quotes
+ * Docs: POST /shipping-quote
  */
 export const getVamashipRates = async (rateData) => {
     try {
-        const response = await vamashipClient.post('/quotes', rateData);
+        const response = await vamashipClient.post('/shipping-quote', rateData);
         return response.data;
     } catch (error) {
         throw formatVamashipError(error);
