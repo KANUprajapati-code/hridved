@@ -1,5 +1,106 @@
 import axios from 'axios';
 import dotenv from 'dotenv';
+dotenv.config();
+
+/**
+ * Vamaship client helper
+ *
+ * Defaults to staging credentials provided in the chat. Override via env:
+ * - VAMASHIP_BASE_URL
+ * - VAMASHIP_TOKEN
+ * - VAMASHIP_AUTH_PREFIX (e.g. 'Bearer ' or 'Token ')
+ */
+
+const DEFAULT_BASE = (
+    process.env.VAMASHIP_BASE_URL ||
+    'https://ecom3stagingapi.vamaship.com/ecom/api/v1/'
+).replace(/\/+$/, '');
+
+const VAMASHIP_TOKEN = (
+    process.env.VAMASHIP_TOKEN ||
+    'nsaGISQu2jnUy3cpxZk0VI4XdkOgUmDKwU426JtN3'
+).trim();
+
+const VAMASHIP_AUTH_PREFIX = process.env.VAMASHIP_AUTH_PREFIX !== undefined
+    ? process.env.VAMASHIP_AUTH_PREFIX
+    : 'Bearer ';
+
+const vamashipClient = axios.create({
+    baseURL: DEFAULT_BASE,
+    timeout: 20000,
+});
+
+vamashipClient.interceptors.request.use((config) => {
+    config.headers = config.headers || {};
+    config.headers['Content-Type'] = 'application/json';
+    if (VAMASHIP_TOKEN) {
+        config.headers['Authorization'] = `${VAMASHIP_AUTH_PREFIX || ''}${VAMASHIP_TOKEN}`;
+    }
+    console.log(`\n[VAMASHIP REQUEST] ${config.method?.toUpperCase()} ${config.baseURL}${config.url}`);
+    return config;
+});
+
+const formatAxiosError = (error) => ({
+    message: error.message,
+    status: error.response?.status,
+    data: error.response?.data,
+});
+
+/**
+ * Generic request helper
+ * @param {'get'|'post'|'put'|'patch'|'delete'} method
+ * @param {string} path - path relative to baseURL (leading slash optional)
+ * @param {object} [data]
+ */
+export const vamashipRequest = async (method, path, data) => {
+    try {
+        const url = path.replace(/^\//, '');
+        const response = await vamashipClient.request({
+            method,
+            url,
+            data,
+        });
+        return response.data;
+    } catch (error) {
+        throw formatAxiosError(error);
+    }
+};
+
+/**
+ * Create a Vamaship order (shipment)
+ * Note: confirm exact path with your Vamaship docs — adjust `/orders` if needed.
+ */
+export const createVamashipOrder = async (orderPayload) => {
+    return vamashipRequest('post', '/orders', orderPayload);
+};
+
+/**
+ * Get rates/quotes from Vamaship
+ * Path may be `/rates` or `/quote` depending on API version — adjust if needed.
+ */
+export const getVamashipRates = async (ratesPayload) => {
+    return vamashipRequest('post', '/rates', ratesPayload);
+};
+
+/**
+ * Track consignment by id — adjust path if your API uses different route.
+ */
+export const trackVamashipConsignment = async (consignmentId) => {
+    return vamashipRequest('get', `/consignments/${consignmentId}`);
+};
+
+export default vamashipClient;
+
+/**
+ * Usage notes:
+ * - To test staging, either leave defaults or set:
+ *     VAMASHIP_BASE_URL=https://ecom3stagingapi.vamaship.com/ecom/api/v1/
+ *     VAMASHIP_TOKEN=<staging token>
+ * - For production, set VAMASHIP_BASE_URL and VAMASHIP_TOKEN to production values.
+ * - If the API expects a different auth header (e.g. `Token `), set `VAMASHIP_AUTH_PREFIX`.
+ */
+import axios from 'axios';
+import dotenv from 'dotenv';
 import https from 'https';
 dotenv.config();
 
