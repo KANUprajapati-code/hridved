@@ -7,6 +7,7 @@ const FSHIP_BASE_URL = (process.env.FSHIP_BASE_URL || DEFAULT_BASE).replace(/\/+
 const FSHIP_KEY = (process.env.FSHIP_SIGNATURE || process.env.FSHIP_API_KEY || '').trim();
 const FSHIP_PICKUP_ID = process.env.FSHIP_PICKUP_ID || '0';
 const FSHIP_AUTH_HEADER = process.env.FSHIP_AUTH_HEADER || 'signature';
+const FSHIP_AUTH_PREFIX = process.env.FSHIP_AUTH_PREFIX || ''; // e.g. 'Bearer '
 
 if (!FSHIP_KEY) {
     console.warn('[SHIPMENT] WARNING: FSHIP API key/signature is not set (FSHIP_SIGNATURE or FSHIP_API_KEY). Requests will likely 401.');
@@ -23,7 +24,10 @@ fshipClient.interceptors.request.use((config) => {
 
     // Use configured header name
     config.headers['Content-Type'] = 'application/json';
-    if (FSHIP_KEY) config.headers[FSHIP_AUTH_HEADER] = FSHIP_KEY;
+    if (FSHIP_KEY) {
+        const authValue = `${FSHIP_AUTH_PREFIX || ''}${FSHIP_KEY}`;
+        config.headers[FSHIP_AUTH_HEADER] = authValue;
+    }
 
     const bodyPreview = config.data ? (typeof config.data === 'string' ? config.data : JSON.stringify(config.data)) : '';
     console.log(`Fship Request: [${(config.method || 'POST').toUpperCase()}] ${fullUrl}`);
