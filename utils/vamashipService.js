@@ -31,21 +31,37 @@ const formatVamashipError = (error) => ({
 });
 
 export const getVamashipRates = async (rateData) => {
-  try {
-    const response = await vamashipClient.post('/shipping-quote', rateData);
-    return response.data;
-  } catch (error) {
-    throw formatVamashipError(error);
+  const candidates = ['/shipping-quote', '/shipping/quote', '/rates', '/quote', '/shipping/rates'];
+  let lastErr;
+  for (const path of candidates) {
+    try {
+      console.log(`[VAMASHIP] Trying rates endpoint: ${path}`);
+      const response = await vamashipClient.post(path, rateData);
+      return response.data;
+    } catch (error) {
+      lastErr = error;
+      console.warn(`[VAMASHIP] Rates endpoint ${path} failed:`, error.response?.status || error.message);
+      if (error.response?.data) console.debug('[VAMASHIP] Rates error data:', JSON.stringify(error.response.data));
+    }
   }
+  throw formatVamashipError(lastErr || new Error('No endpoint candidates tried'));
 };
 
 export const createVamashipForwardOrder = async (shipmentData) => {
-  try {
-    const response = await vamashipClient.post('/shipments/book', shipmentData);
-    return response.data;
-  } catch (error) {
-    throw formatVamashipError(error);
+  const candidates = ['/shipments/book', '/shipments', '/orders', '/shipments/create'];
+  let lastErr;
+  for (const path of candidates) {
+    try {
+      console.log(`[VAMASHIP] Trying create endpoint: ${path}`);
+      const response = await vamashipClient.post(path, shipmentData);
+      return response.data;
+    } catch (error) {
+      lastErr = error;
+      console.warn(`[VAMASHIP] Create endpoint ${path} failed:`, error.response?.status || error.message);
+      if (error.response?.data) console.debug('[VAMASHIP] Create error data:', JSON.stringify(error.response.data));
+    }
   }
+  throw formatVamashipError(lastErr || new Error('No create endpoint candidates tried'));
 };
 
 export const trackVamashipShipment = async (awb) => {
