@@ -297,6 +297,39 @@ fshipClient.interceptors.request.use((config) => {
     return config;
 });
 
+/* ======================================================
+   RESPONSE INTERCEPTOR: Retry once with alternate prefixes
+   when we receive 401 Unauthorized to probe accepted format
+====================================================== */
+fshipClient.interceptors.response.use(null, async (error) => {
+    const status = error.response?.status;
+    const cfg = error.config;
+
+    if (status === 401 && cfg && !cfg.__fship_retried) {
+        const candidates = ['', 'bearer ', 'Bearer '];
+        // Start from current prefix, then try others
+        const tried = new Set([String(FSHIP_AUTH_PREFIX || '')]);
+
+        for (const p of candidates) {
+            if (tried.has(p)) continue;
+            try {
+                const retryConfig = { ...cfg, __fship_retried: true };
+                retryConfig.headers = { ...retryConfig.headers };
+                retryConfig.headers[FSHIP_AUTH_HEADER] = `${p}${FSHIP_KEY}`;
+                console.log(`[FSHIP RETRY] Retrying ${retryConfig.method?.toUpperCase()} ${retryConfig.url} with prefix='${p}'`);
+                const resp = await fshipClient.request(retryConfig);
+                return resp;
+            } catch (err) {
+                // continue to next candidate
+                tried.add(p);
+                console.log(`[FSHIP RETRY] Prefix='${p}' failed: ${err.response?.status || err.message}`);
+            }
+        }
+    }
+
+    return Promise.reject(error);
+});
+
 console.log("========== FSHIP DEBUG ==========");
 console.log("BASE URL:", FSHIP_BASE_URL);
 console.log("SIGNATURE EXISTS:", !!FSHIP_KEY);
