@@ -7,11 +7,15 @@ const generateToken = (res, userId) => {
         expiresIn: '30d',
     });
 
+    const isProduction = process.env.NODE_ENV === 'production';
+
     res.cookie('jwt', token, {
         httpOnly: true,
-        secure: true, // Required for SameSite: 'none'
-        sameSite: 'none', // Allow cookie to be sent in cross-origin requests
+        secure: true, // MUST be true for SameSite: 'none'
+        sameSite: 'none',
+        partitioned: true, // Helps with iOS/Safari ITP
         maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
+        path: '/',
     });
 };
 
@@ -76,6 +80,10 @@ const logoutUser = (req, res) => {
     res.cookie('jwt', '', {
         httpOnly: true,
         expires: new Date(0),
+        secure: true,
+        sameSite: 'none',
+        partitioned: true,
+        path: '/',
     });
     res.status(200).json({ message: 'Logged out successfully' });
 };

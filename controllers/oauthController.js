@@ -6,7 +6,7 @@ import {
     formatUserResponse,
 } from '../utils/oauthService.js';
 
-// ✅ Generate JWT (FIXED FOR VERCEL + CROSS DOMAIN)
+// ✅ Generate JWT (FIXED FOR VERCEL + CROSS DOMAIN + iOS)
 const generateToken = (res, userId) => {
     const token = jwt.sign({ userId }, process.env.JWT_SECRET, {
         expiresIn: '30d',
@@ -16,7 +16,9 @@ const generateToken = (res, userId) => {
         httpOnly: true,
         secure: true,          // Required for HTTPS (Vercel)
         sameSite: 'none',      // Required for cross-domain
+        partitioned: true,     // Helps with iOS/Safari ITP
         maxAge: 30 * 24 * 60 * 60 * 1000,
+        path: '/',
     });
 };
 
