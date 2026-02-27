@@ -135,4 +135,55 @@ export const processVamashipShipment = async (orderId) => {
   }
 };
 
+export const processVamashipReverseShipment = async (forwardWaybill) => {
+  try {
+    const Order = (await import('../models/Order.js')).default;
+    const forwardOrder = await Order.findOne({ waybill: forwardWaybill }).populate('user', 'email name');
+    if (!forwardOrder) throw new Error('Forward order not found');
+
+    const payload = {
+      seller: {
+        name: process.env.SELLER_NAME || 'Hridved Ayurveda',
+        phone: process.env.SELLER_PHONE || '9876543210',
+        email: process.env.SELLER_EMAIL || 'hridved@gmail.com',
+        address: process.env.SELLER_ADDRESS || 'Plot No. 123, Modasa Road',
+        city: process.env.SELLER_CITY || 'Dhansura',
+        state: process.env.SELLER_STATE || 'Gujarat',
+        pincode: process.env.VAMASHIP_PICKUP_PINCODE || '383325',
+        country: 'India'
+      },
+      shipments: [{
+        type: 'reverse',
+        subtype: 'general',
+        consignee: {
+          name: forwardOrder.shippingAddress.fullName,
+          phone: forwardOrder.shippingAddress.mobileNumber,
+          email: forwardOrder.user?.email || 'customer@example.com',
+          address: forwardOrder.shippingAddress.houseNumber,
+          city: forwardOrder.shippingAddress.city,
+          state: forwardOrder.shippingAddress.state || '',
+          pincode: forwardOrder.shippingAddress.pincode,
+          country: 'India'
+        },
+        order_id: `REV${forwardOrder.orderId || forwardOrder._id}`,
+        total_value: Math.round(forwardOrder.totalPrice),
+        item_details: forwardOrder.orderItems.map(item => ({
+          name: item.name,
+          quantity: item.qty,
+          value: item.price,
+          weight: 0.5,
+          length: 10,
+          width: 10,
+          height: 10
+        }))
+      }]
+    };
+
+    return await createVamashipForwardOrder(payload);
+  } catch (error) {
+    console.error('[VAMASHIP] Reverse Error', error);
+    throw error;
+  }
+};
+
 export default vamashipClient;
