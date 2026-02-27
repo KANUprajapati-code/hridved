@@ -245,9 +245,9 @@ const FSHIP_BASE_URL = (
     process.env.FSHIP_BASE_URL || DEFAULT_BASE
 ).replace(/\/+$/, '');
 
-const FSHIP_KEY = (
-    process.env.FSHIP_SIGNATURE || process.env.FSHIP_API_KEY || ''
-).trim();
+// NOTE: Temporarily hardcoded client key for quick testing/development.
+// Replace with environment variable `FSHIP_SIGNATURE` in production.
+const FSHIP_KEY = '569bf88e69255c15f74fcf99f580b55cecb9e725dde939e5e99ee7ad52771ecb';
 
 const FSHIP_PICKUP_ID = Number(process.env.FSHIP_PICKUP_ID || 0);
 
