@@ -41,22 +41,13 @@ const formatVamashipError = (error) => ({
 export const getVamashipRates = async (rateData) => {
   const candidates = [
     '/dom/quote',
-    '/dom/coverage',
-    '/shipping/quote',
-    '/shipping-quote',
-    '/rates',
-    '/quote',
-    '/shipping/rates',
-    '/api/v1/rates',
-    '/api/v1/shipping/quote'
+    '/dom/coverage'
   ];
 
-  // Auth variations to probe
+  // Auth variations to probe (Focus on top two)
   const authHeaders = [
     { name: 'Authorization', prefix: 'Bearer ' },
-    { name: 'X-Vamaship-Token', prefix: '' },
-    { name: 'Authorization', prefix: '' },
-    { name: 'Token', prefix: '' }
+    { name: 'X-Vamaship-Token', prefix: '' }
   ];
 
   let lastErr;
@@ -74,7 +65,7 @@ export const getVamashipRates = async (rateData) => {
             'User-Agent': 'Mozilla/5.0 Hridved-Backend/1.0',
             [auth.name]: `${auth.prefix}${VAMASHIP_TOKEN}`
           },
-          timeout: 10000,
+          timeout: 3500, // Reduced to avoid global timeout
           httpsAgent: new https.Agent({ rejectUnauthorized: false })
         });
         console.log(`[VAMASHIP RETRY] Success with path='${path}'`);

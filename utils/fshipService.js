@@ -327,22 +327,12 @@ fshipClient.interceptors.response.use(null, async (error) => {
             /* ignore logging errors */
         }
 
-        // Try multiple URL paths, header-name + prefix combinations
-        const prefixes = ['', 'Bearer ', 'bearer ', 'Token ', 'token ', 'signature ', 'Signature '];
-        const headerCandidates = [
-            'signature',
-            'Signature',
-            'Authorization',
-            'authorization',
-            'x-api-key',
-            'Client-Key',
-            'client-key'
-        ];
-
+        // REDUCED: Focus on high-probability production candidates ONLY to avoid Vercel timeouts
+        const prefixes = ['', 'bearer '];
+        const headerCandidates = ['signature', 'Authorization'];
         const tried = new Set();
-        // Candidates for alternate base URLs and paths (some accounts are on the old platform or v1)
-        const alternateBases = [FSHIP_BASE_URL, 'https://capi.fship.in', 'https://api.fship.in'];
-        const pathCandidates = [cfg.url, '/api/v1/order', '/api/v1/createforwardorder', '/api/createforwardorder', '/order', '/v1/order'];
+        const alternateBases = [FSHIP_BASE_URL, 'https://capi.fship.in'];
+        const pathCandidates = ['/api/v1/order', '/api/createforwardorder'];
 
         for (const baseUrl of alternateBases) {
             for (const path of pathCandidates) {
@@ -379,7 +369,7 @@ fshipClient.interceptors.response.use(null, async (error) => {
                                 url: rawUrl,
                                 data: finalData,
                                 headers: cleanHeaders,
-                                timeout: 15000,
+                                timeout: 3000, // Reduced to avoid global timeout
                                 httpsAgent: new https.Agent({ rejectUnauthorized: false })
                             });
 
