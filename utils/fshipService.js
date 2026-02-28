@@ -326,9 +326,13 @@ fshipClient.interceptors.response.use(null, async (error) => {
         const prefixes = ['', 'bearer ', 'Bearer '];
         const headerCandidates = [
             FSHIP_AUTH_HEADER,
+            'Signature',
             'Authorization',
             'authorization',
             'x-signature',
+            'X-Signature',
+            'Client-Key',
+            'client-key',
             'x-api-key',
             'token'
         ];
