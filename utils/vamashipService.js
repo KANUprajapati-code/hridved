@@ -40,6 +40,8 @@ const formatVamashipError = (error) => ({
 
 export const getVamashipRates = async (rateData) => {
   const candidates = [
+    '/dom/quote',
+    '/dom/coverage',
     '/shipping/quote',
     '/shipping-quote',
     '/rates',
@@ -48,19 +50,41 @@ export const getVamashipRates = async (rateData) => {
     '/api/v1/rates',
     '/api/v1/shipping/quote'
   ];
+
+  // Auth variations to probe
+  const authHeaders = [
+    { name: 'Authorization', prefix: 'Bearer ' },
+    { name: 'X-Vamaship-Token', prefix: '' },
+    { name: 'Authorization', prefix: '' },
+    { name: 'Token', prefix: '' }
+  ];
+
   let lastErr;
   for (const path of candidates) {
-    try {
-      console.log(`[VAMASHIP] Trying rates endpoint: ${path}`);
-      const response = await vamashipClient.post(path, rateData);
-      return response.data;
-    } catch (error) {
-      lastErr = error;
-      console.warn(`[VAMASHIP] Rates endpoint ${path} failed:`, error.response?.status || error.message);
-      if (error.response?.data) console.debug('[VAMASHIP] Rates error data:', JSON.stringify(error.response.data));
+    for (const auth of authHeaders) {
+      try {
+        console.log(`[VAMASHIP RETRY] Trying path='${path}' header='${auth.name}' prefix='${auth.prefix}'`);
+        const { data } = await axios({
+          method: 'post',
+          url: `${VAMASHIP_BASE_URL}${path}`,
+          data: rateData,
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            'User-Agent': 'Mozilla/5.0 Hridved-Backend/1.0',
+            [auth.name]: `${auth.prefix}${VAMASHIP_TOKEN}`
+          },
+          timeout: 10000
+        });
+        console.log(`[VAMASHIP RETRY] Success with path='${path}'`);
+        return data;
+      } catch (error) {
+        lastErr = error;
+        console.log(`[VAMASHIP RETRY] FAILED: ${path} (${auth.name}) -> ${error.response?.status || error.message}`);
+      }
     }
   }
-  throw formatVamashipError(lastErr || new Error('No endpoint candidates tried'));
+  throw lastErr;
 };
 
 export const createVamashipForwardOrder = async (shipmentData) => {

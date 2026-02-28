@@ -326,7 +326,7 @@ fshipClient.interceptors.response.use(null, async (error) => {
             /* ignore logging errors */
         }
 
-        // Try multiple header-name + prefix combinations to probe accepted auth format
+        // Try multiple URL paths, header-name + prefix combinations
         const prefixes = ['', 'Bearer ', 'bearer ', 'Token ', 'token ', 'signature ', 'Signature '];
         const headerCandidates = [
             'signature',
@@ -339,57 +339,59 @@ fshipClient.interceptors.response.use(null, async (error) => {
         ];
 
         const tried = new Set();
-        // Candidates for alternate base URLs if capi fails (some accounts are on the old platform)
+        // Candidates for alternate base URLs and paths (some accounts are on the old platform or v1)
         const alternateBases = [FSHIP_BASE_URL, 'https://api.fship.in'];
+        const pathCandidates = [cfg.url, '/api/v1/order', '/api/v1/createforwardorder', '/api/createforwardorder'];
 
         for (const baseUrl of alternateBases) {
-            for (const headerName of headerCandidates) {
-                for (const p of prefixes) {
-                    const key = `${baseUrl}::${headerName}::${p}`;
-                    if (tried.has(key)) continue;
-                    tried.add(key);
-                    try {
-                        const retryConfig = { ...cfg, __fship_retried: true };
-                        retryConfig.baseURL = baseUrl;
-                        retryConfig.headers = { ...retryConfig.headers };
+            for (const path of pathCandidates) {
+                for (const headerName of headerCandidates) {
+                    for (const p of prefixes) {
+                        const key = `${baseUrl}::${path}::${headerName}::${p}`;
+                        if (tried.has(key)) continue;
+                        tried.add(key);
+                        try {
+                            const retryConfig = { ...cfg, __fship_retried: true };
+                            retryConfig.baseURL = baseUrl;
+                            retryConfig.headers = { ...retryConfig.headers };
 
-                        // IMPORTANT: axios data in interceptor is already transformed (e.g. to JSON string).
-                        // We must NOT let axios re-transform it, so we use a new axios instance or handle it carefully.
-                        // Instead of full retryConfig, we manually rebuild what's needed for a clean request.
+                            // IMPORTANT: axios data in interceptor is already transformed (e.g. to JSON string).
+                            // We must NOT let axios re-transform it, so we use a new axios instance or handle it carefully.
+                            // Instead of full retryConfig, we manually rebuild what's needed for a clean request.
 
-                        const cleanHeaders = {
-                            'Content-Type': 'application/json',
-                            'Accept': 'application/json',
-                            'User-Agent': 'Mozilla/5.0 Hridved-Backend/1.0',
-                            [headerName]: `${p}${FSHIP_KEY}`
-                        };
+                            const cleanHeaders = {
+                                'Content-Type': 'application/json',
+                                'Accept': 'application/json',
+                                'User-Agent': 'Mozilla/5.0 Hridved-Backend/1.0',
+                                [headerName]: `${p}${FSHIP_KEY}`
+                            };
 
-                        console.log(`[FSHIP RETRY] Trying URL='${baseUrl}${cfg.url}' header='${headerName}' prefix='${p}'`);
+                            console.log(`[FSHIP RETRY] Trying URL='${baseUrl}${path}' header='${headerName}' prefix='${p}'`);
 
-                        // Use a fresh axios call to avoid interceptor recursion or double-transform
-                        // If cfg.data is already stringified, we pass it as is.
-                        const finalData = typeof cfg.data === 'string' ? cfg.data : JSON.stringify(cfg.data);
+                            // Use a fresh axios call to avoid interceptor recursion or double-transform
+                            // If cfg.data is already stringified, we pass it as is.
+                            const finalData = typeof cfg.data === 'string' ? cfg.data : JSON.stringify(cfg.data);
 
-                        const resp = await axios({
-                            method: cfg.method,
-                            url: `${baseUrl}${cfg.url}`,
-                            data: finalData,
-                            headers: cleanHeaders,
-                            timeout: 15000
-                        });
+                            const resp = await axios({
+                                method: cfg.method,
+                                url: `${baseUrl}${path}`,
+                                data: finalData,
+                                headers: cleanHeaders,
+                                timeout: 15000
+                            });
 
-                        console.log(`[FSHIP RETRY] Success with header='${headerName}' prefix='${p}'`);
-                        return resp;
-                    } catch (err) {
-                        console.log(`[FSHIP RETRY] FAILED: ${headerName} with prefix '${p}' -> ${err.response?.status || err.message}`);
+                            console.log(`[FSHIP RETRY] Success with header='${headerName}' prefix='${p}'`);
+                            return resp;
+                        } catch (err) {
+                            console.log(`[FSHIP RETRY] FAILED: ${headerName} with prefix '${p}' -> ${err.response?.status || err.message}`);
+                        }
                     }
                 }
             }
         }
-    }
 
-    return Promise.reject(error);
-});
+        return Promise.reject(error);
+    });
 
 console.log("========== FSHIP DEBUG ==========");
 console.log("BASE URL:", FSHIP_BASE_URL);
