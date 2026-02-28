@@ -286,16 +286,20 @@ console.log("FSHIP KEY LENGTH:", FSHIP_KEY.length);
 fshipClient.interceptors.request.use((config) => {
     config.headers['Content-Type'] = 'application/json';
 
-
-    if (FSHIP_KEY) {
+    // Only set default signature if not already manually set (e.g. during retries)
+    if (FSHIP_KEY && !config.headers[FSHIP_AUTH_HEADER] && !config.headers['Authorization'] && !config.headers['authorization']) {
         config.headers[FSHIP_AUTH_HEADER] = `${FSHIP_AUTH_PREFIX || ''}${FSHIP_KEY}`;
     }
 
+    const actualHeaderValue = config.headers[FSHIP_AUTH_HEADER] || config.headers['Authorization'] || config.headers['authorization'] || 'NONE';
+    const isBearer = String(actualHeaderValue).toLowerCase().startsWith('bearer');
+
     console.log(`\n[FSHIP REQUEST] ${config.method?.toUpperCase()} ${config.baseURL}${config.url}`);
-    console.log(`[FSHIP HEADER] signature length: ${FSHIP_KEY.length}, prefix: '${FSHIP_AUTH_PREFIX}'`);
+    console.log(`[FSHIP HEADER] signature length: ${FSHIP_KEY.length}, isBearer: ${isBearer}`);
 
     if (config.data) {
-        console.log('[FSHIP BODY]', JSON.stringify(config.data, null, 2));
+        // Obfuscate sensitive body data if needed, but for debugging we show it
+        console.log('[FSHIP BODY]', typeof config.data === 'string' ? config.data : JSON.stringify(config.data, null, 2));
     }
 
     return config;
