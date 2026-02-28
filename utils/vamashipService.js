@@ -74,7 +74,8 @@ export const getVamashipRates = async (rateData) => {
             'User-Agent': 'Mozilla/5.0 Hridved-Backend/1.0',
             [auth.name]: `${auth.prefix}${VAMASHIP_TOKEN}`
           },
-          timeout: 10000
+          timeout: 10000,
+          httpsAgent: new https.Agent({ rejectUnauthorized: false })
         });
         console.log(`[VAMASHIP RETRY] Success with path='${path}'`);
         return data;

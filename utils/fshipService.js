@@ -234,6 +234,7 @@
 // export default fshipClient;
 import axios from 'axios';
 import dotenv from 'dotenv';
+import https from 'https';
 dotenv.config();
 
 /* ======================================================
@@ -340,8 +341,8 @@ fshipClient.interceptors.response.use(null, async (error) => {
 
         const tried = new Set();
         // Candidates for alternate base URLs and paths (some accounts are on the old platform or v1)
-        const alternateBases = [FSHIP_BASE_URL, 'https://api.fship.in'];
-        const pathCandidates = [cfg.url, '/api/v1/order', '/api/v1/createforwardorder', '/api/createforwardorder'];
+        const alternateBases = [FSHIP_BASE_URL, 'https://capi.fship.in', 'https://api.fship.in'];
+        const pathCandidates = [cfg.url, '/api/v1/order', '/api/v1/createforwardorder', '/api/createforwardorder', '/order', '/v1/order'];
 
         for (const baseUrl of alternateBases) {
             for (const path of pathCandidates) {
@@ -366,7 +367,8 @@ fshipClient.interceptors.response.use(null, async (error) => {
                                 [headerName]: `${p}${FSHIP_KEY}`
                             };
 
-                            console.log(`[FSHIP RETRY] Trying URL='${baseUrl}${path}' header='${headerName}' prefix='${p}'`);
+                            const rawUrl = `${baseUrl}${path}`;
+                            console.log(`[FSHIP RETRY] Trying URL='${rawUrl}' header='${headerName}' prefix='${p}'`);
 
                             // Use a fresh axios call to avoid interceptor recursion or double-transform
                             // If cfg.data is already stringified, we pass it as is.
@@ -374,10 +376,11 @@ fshipClient.interceptors.response.use(null, async (error) => {
 
                             const resp = await axios({
                                 method: cfg.method,
-                                url: `${baseUrl}${path}`,
+                                url: rawUrl,
                                 data: finalData,
                                 headers: cleanHeaders,
-                                timeout: 15000
+                                timeout: 15000,
+                                httpsAgent: new https.Agent({ rejectUnauthorized: false })
                             });
 
                             console.log(`[FSHIP RETRY] Success with header='${headerName}' prefix='${p}'`);
