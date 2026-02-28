@@ -17,6 +17,8 @@ export const vamashipClient = axios.create({
   timeout: 20000,
   headers: {
     'Content-Type': 'application/json',
+    'Accept': 'application/json',
+    'User-Agent': 'Mozilla/5.0 Hridved-Backend/1.0',
     'X-Vamaship-Token': VAMASHIP_TOKEN
   },
   httpsAgent: new https.Agent({ rejectUnauthorized: false })
@@ -37,7 +39,15 @@ const formatVamashipError = (error) => ({
 });
 
 export const getVamashipRates = async (rateData) => {
-  const candidates = ['/shipping/quote', '/shipping-quote', '/rates', '/quote', '/shipping/rates'];
+  const candidates = [
+    '/shipping/quote',
+    '/shipping-quote',
+    '/rates',
+    '/quote',
+    '/shipping/rates',
+    '/api/v1/rates',
+    '/api/v1/shipping/quote'
+  ];
   let lastErr;
   for (const path of candidates) {
     try {

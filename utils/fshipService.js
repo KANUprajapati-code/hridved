@@ -274,6 +274,10 @@ if (!FSHIP_KEY) {
 const fshipClient = axios.create({
     baseURL: FSHIP_BASE_URL,
     timeout: 20000,
+    headers: {
+        'Accept': 'application/json',
+        'User-Agent': 'Mozilla/5.0 Hridved-Backend/1.0',
+    }
 });
 
 /* ======================================================
@@ -355,16 +359,21 @@ fshipClient.interceptors.response.use(null, async (error) => {
 
                         const cleanHeaders = {
                             'Content-Type': 'application/json',
+                            'Accept': 'application/json',
+                            'User-Agent': 'Mozilla/5.0 Hridved-Backend/1.0',
                             [headerName]: `${p}${FSHIP_KEY}`
                         };
 
                         console.log(`[FSHIP RETRY] Trying URL='${baseUrl}${cfg.url}' header='${headerName}' prefix='${p}'`);
 
                         // Use a fresh axios call to avoid interceptor recursion or double-transform
+                        // If cfg.data is already stringified, we pass it as is.
+                        const finalData = typeof cfg.data === 'string' ? cfg.data : JSON.stringify(cfg.data);
+
                         const resp = await axios({
                             method: cfg.method,
                             url: `${baseUrl}${cfg.url}`,
-                            data: cfg.data, // This is already the stringified JSON from the first try
+                            data: finalData,
                             headers: cleanHeaders,
                             timeout: 15000
                         });
