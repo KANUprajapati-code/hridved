@@ -202,7 +202,7 @@
 //                 sku: String(item.product)
 //             }))
 //         };
-        
+
 //         const result = await createFshipForwardOrder(payload);
 
 //         if (result && result.status === true) {
@@ -275,10 +275,14 @@ const fshipClient = axios.create({
     baseURL: FSHIP_BASE_URL,
     timeout: 20000,
 });
-   
+
 /* ======================================================
    REQUEST INTERCEPTOR
 ====================================================== */
+
+console.log("FSHIP KEY EXISTS:", !!FSHIP_KEY);
+console.log("FSHIP KEY LENGTH:", FSHIP_KEY.length);
+
 fshipClient.interceptors.request.use((config) => {
     config.headers['Content-Type'] = 'application/json';
 
@@ -570,6 +574,5 @@ export const processFshipShipment = async (orderId) => {
     }
 };
 
-console.log("FSHIP KEY EXISTS:", !!FSHIP_KEY);
-console.log("FSHIP KEY LENGTH:", FSHIP_KEY.length);
+
 export default fshipClient;
