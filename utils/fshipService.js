@@ -389,9 +389,10 @@ fshipClient.interceptors.response.use(null, async (error) => {
                 }
             }
         }
+    }
 
-        return Promise.reject(error);
-    });
+    return Promise.reject(error);
+});
 
 console.log("========== FSHIP DEBUG ==========");
 console.log("BASE URL:", FSHIP_BASE_URL);
