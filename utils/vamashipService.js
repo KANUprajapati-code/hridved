@@ -9,7 +9,7 @@ const __dirname = path.dirname(__filename);
 
 dotenv.config({ path: path.join(__dirname, '../.env') });
 
-const VAMASHIP_BASE_URL = (process.env.VAMASHIP_BASE_URL || 'https://ecom3stagingapi.vamaship.com/ecom/v1').replace(/\/+$/, '');
+const VAMASHIP_BASE_URL = (process.env.VAMASHIP_BASE_URL || 'https://api.vamaship.com/ecom/v1').replace(/\/+$/, '');
 const VAMASHIP_TOKEN = process.env.VAMASHIP_TOKEN || 'nsaGISQu2jnUy3cpxZk0VI4XdkOgUmDKwU426JtN3';
 
 export const vamashipClient = axios.create({
@@ -37,7 +37,7 @@ const formatVamashipError = (error) => ({
 });
 
 export const getVamashipRates = async (rateData) => {
-  const candidates = ['/shipping-quote', '/shipping/quote', '/rates', '/quote', '/shipping/rates'];
+  const candidates = ['/shipping/quote', '/shipping-quote', '/rates', '/quote', '/shipping/rates'];
   let lastErr;
   for (const path of candidates) {
     try {

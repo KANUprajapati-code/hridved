@@ -323,45 +323,57 @@ fshipClient.interceptors.response.use(null, async (error) => {
         }
 
         // Try multiple header-name + prefix combinations to probe accepted auth format
-        const prefixes = ['', 'bearer ', 'Bearer '];
+        const prefixes = ['', 'Bearer ', 'bearer ', 'Token ', 'token ', 'signature ', 'Signature '];
         const headerCandidates = [
-            FSHIP_AUTH_HEADER,
+            'signature',
             'Signature',
             'Authorization',
             'authorization',
-            'x-signature',
-            'X-Signature',
-            'Client-Key',
-            'client-key',
             'x-api-key',
-            'token'
+            'Client-Key',
+            'client-key'
         ];
 
         const tried = new Set();
+        // Candidates for alternate base URLs if capi fails (some accounts are on the old platform)
+        const alternateBases = [FSHIP_BASE_URL, 'https://api.fship.in'];
 
-        for (const headerName of headerCandidates) {
-            for (const p of prefixes) {
-                const key = `${headerName}::${p}`;
-                if (tried.has(key)) continue;
-                tried.add(key);
-                try {
-                    const retryConfig = { ...cfg, __fship_retried: true };
-                    retryConfig.headers = { ...retryConfig.headers };
-                    // remove any existing auth-like headers to avoid duplicates
-                    delete retryConfig.headers[FSHIP_AUTH_HEADER];
-                    delete retryConfig.headers['Authorization'];
-                    delete retryConfig.headers['authorization'];
-                    delete retryConfig.headers['x-signature'];
-                    delete retryConfig.headers['x-api-key'];
-                    delete retryConfig.headers['token'];
+        for (const baseUrl of alternateBases) {
+            for (const headerName of headerCandidates) {
+                for (const p of prefixes) {
+                    const key = `${baseUrl}::${headerName}::${p}`;
+                    if (tried.has(key)) continue;
+                    tried.add(key);
+                    try {
+                        const retryConfig = { ...cfg, __fship_retried: true };
+                        retryConfig.baseURL = baseUrl;
+                        retryConfig.headers = { ...retryConfig.headers };
 
-                    retryConfig.headers[headerName] = `${p}${FSHIP_KEY}`;
-                    console.log(`[FSHIP RETRY] Trying header='${headerName}' prefix='${p}'`);
-                    const resp = await fshipClient.request(retryConfig);
-                    console.log(`[FSHIP RETRY] Success with header='${headerName}' prefix='${p}'`);
-                    return resp;
-                } catch (err) {
-                    console.log(`[FSHIP RETRY] header='${headerName}' prefix='${p}' failed: ${err.response?.status || err.message}`);
+                        // IMPORTANT: axios data in interceptor is already transformed (e.g. to JSON string).
+                        // We must NOT let axios re-transform it, so we use a new axios instance or handle it carefully.
+                        // Instead of full retryConfig, we manually rebuild what's needed for a clean request.
+
+                        const cleanHeaders = {
+                            'Content-Type': 'application/json',
+                            [headerName]: `${p}${FSHIP_KEY}`
+                        };
+
+                        console.log(`[FSHIP RETRY] Trying URL='${baseUrl}${cfg.url}' header='${headerName}' prefix='${p}'`);
+
+                        // Use a fresh axios call to avoid interceptor recursion or double-transform
+                        const resp = await axios({
+                            method: cfg.method,
+                            url: `${baseUrl}${cfg.url}`,
+                            data: cfg.data, // This is already the stringified JSON from the first try
+                            headers: cleanHeaders,
+                            timeout: 15000
+                        });
+
+                        console.log(`[FSHIP RETRY] Success with header='${headerName}' prefix='${p}'`);
+                        return resp;
+                    } catch (err) {
+                        console.log(`[FSHIP RETRY] FAILED: ${headerName} with prefix '${p}' -> ${err.response?.status || err.message}`);
+                    }
                 }
             }
         }
