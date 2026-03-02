@@ -62,6 +62,7 @@ const registerUser = async (req, res) => {
 // @route   POST /api/users/logout
 // @access  Public
 const logoutUser = (req, res) => {
+    console.log('[AUTH] Logout requested. Clearing cookie...');
     clearAuthCookie(res);
     res.status(200).json({ message: 'Logged out successfully' });
 };
@@ -70,6 +71,7 @@ const logoutUser = (req, res) => {
 // @route   GET /api/users/profile
 // @access  Private
 const getUserProfile = async (req, res) => {
+    console.log(`[AUTH] Profile requested for user: ${req.user?._id}`);
     const user = await User.findById(req.user._id);
 
     if (user) {

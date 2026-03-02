@@ -14,9 +14,8 @@ export const setAuthCookie = (res, userId) => {
 
     res.cookie('jwt', token, {
         httpOnly: true,
-        secure: true,          // MUST be true for SameSite: 'none' (Vercel/Cross-domain)
-        sameSite: 'none',      // Critical for cross-domain auth (frontend on one domain, backend on another)
-        partitioned: true,     // Helps with iOS/Safari ITP (Third-party cookie restrictions)
+        secure: true,          // Required for SameSite: 'none'
+        sameSite: 'none',      // Critical for cross-domain auth
         maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
         path: '/',
     });
@@ -29,14 +28,26 @@ export const setAuthCookie = (res, userId) => {
  * Matches exact attributes used in setAuthCookie.
  * @param {Object} res - Express response object
  */
+/**
+ * Unified helper to clear the authentication cookie.
+ * Matches exact attributes used in setAuthCookie.
+ * Also clears potential legacy versions (partitioned/non-partitioned).
+ * @param {Object} res - Express response object
+ */
 export const clearAuthCookie = (res) => {
+    // Clear standard version
     res.cookie('jwt', '', {
         httpOnly: true,
         secure: true,
         sameSite: 'none',
-        partitioned: true,
         expires: new Date(0),
         maxAge: 0,
         path: '/',
     });
+
+    // Clear partitioned version (just in case it was set previously)
+    res.append('Set-Cookie', 'jwt=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Max-Age=0; HttpOnly; Secure; SameSite=None; Partitioned');
+
+    // Clear non-SameSite version (just in case of old setup)
+    res.append('Set-Cookie', 'jwt=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Max-Age=0; HttpOnly; Secure; SameSite=Lax');
 };
