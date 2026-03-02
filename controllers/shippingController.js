@@ -102,27 +102,34 @@ export const checkServiceability = async (req, res) => {
             }
         }
 
-        // Always return at least the default options
+        // 3. Fallback if no shipping options were found
         if (shippingOptions.length === 0) {
-            shippingOptions = [
+            console.log('[SHIPPING] Using fallback rates as both APIs failed/404ed');
+            shippingOptions.push(
                 {
                     type: 'Standard',
                     days: '3-5',
                     charge: 0,
                     description: 'Standard Delivery (3-5 days)',
+                    provider: 'Fship'
                 },
                 {
                     type: 'Express',
                     days: '1-2',
                     charge: 99,
                     description: 'Express Delivery (1-2 days)',
+                    provider: 'Fship'
                 }
-            ];
+            );
         }
 
-        res.json({ shippingOptions });
+        res.json({
+            success: true,
+            shippingOptions
+        });
     } catch (error) {
-        res.status(error.status || 500).json({ message: error.message, details: error.data });
+        console.error('Serviceability Error:', error);
+        res.status(500).json({ success: false, message: error.message });
     }
 };
 
