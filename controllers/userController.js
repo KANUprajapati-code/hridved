@@ -11,9 +11,9 @@ const generateToken = (res, userId) => {
 
     res.cookie('jwt', token, {
         httpOnly: true,
-        secure: true, // MUST be true for SameSite: 'none'
-        sameSite: 'none',
-        partitioned: true, // Helps with iOS/Safari ITP
+        secure: isProduction, // Only true in production
+        sameSite: isProduction ? 'none' : 'lax', // 'none' requires secure
+        partitioned: isProduction, // Partitioned often requires secure
         maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
         path: '/',
     });
@@ -77,12 +77,15 @@ const registerUser = async (req, res) => {
 // @route   POST /api/users/logout
 // @access  Public
 const logoutUser = (req, res) => {
+    const isProduction = process.env.NODE_ENV === 'production';
+
     res.cookie('jwt', '', {
         httpOnly: true,
         expires: new Date(0),
-        secure: true,
-        sameSite: 'none',
-        partitioned: true,
+        maxAge: 0, // More explicit for some browsers
+        secure: isProduction,
+        sameSite: isProduction ? 'none' : 'lax',
+        partitioned: isProduction,
         path: '/',
     });
     res.status(200).json({ message: 'Logged out successfully' });
