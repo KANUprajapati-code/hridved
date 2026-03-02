@@ -1,23 +1,8 @@
 import User from '../models/User.js';
 import jwt from 'jsonwebtoken';
+import { setAuthCookie, clearAuthCookie } from '../utils/cookieUtils.js';
 
-// Generate JWT Helper
-const generateToken = (res, userId) => {
-    const token = jwt.sign({ userId }, process.env.JWT_SECRET, {
-        expiresIn: '30d',
-    });
-
-    const isProduction = process.env.NODE_ENV === 'production';
-
-    res.cookie('jwt', token, {
-        httpOnly: true,
-        secure: isProduction, // Only true in production
-        sameSite: isProduction ? 'none' : 'lax', // 'none' requires secure
-        partitioned: isProduction, // Partitioned often requires secure
-        maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
-        path: '/',
-    });
-};
+// Token generation moved to utils/cookieUtils.js
 
 // @desc    Auth user & get token
 // @route   POST /api/users/login
@@ -28,7 +13,7 @@ const authUser = async (req, res) => {
     const user = await User.findOne({ email });
 
     if (user && (await user.matchPassword(password))) {
-        generateToken(res, user._id);
+        setAuthCookie(res, user._id);
 
         res.json({
             _id: user._id,
@@ -61,7 +46,7 @@ const registerUser = async (req, res) => {
     });
 
     if (user) {
-        generateToken(res, user._id);
+        setAuthCookie(res, user._id);
         res.status(201).json({
             _id: user._id,
             name: user.name,
@@ -77,17 +62,7 @@ const registerUser = async (req, res) => {
 // @route   POST /api/users/logout
 // @access  Public
 const logoutUser = (req, res) => {
-    const isProduction = process.env.NODE_ENV === 'production';
-
-    res.cookie('jwt', '', {
-        httpOnly: true,
-        expires: new Date(0),
-        maxAge: 0, // More explicit for some browsers
-        secure: isProduction,
-        sameSite: isProduction ? 'none' : 'lax',
-        partitioned: isProduction,
-        path: '/',
-    });
+    clearAuthCookie(res);
     res.status(200).json({ message: 'Logged out successfully' });
 };
 

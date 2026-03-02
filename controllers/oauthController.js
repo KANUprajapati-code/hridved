@@ -5,22 +5,9 @@ import {
     getOrCreateOAuthUser,
     formatUserResponse,
 } from '../utils/oauthService.js';
+import { setAuthCookie } from '../utils/cookieUtils.js';
 
-// ✅ Generate JWT (FIXED FOR VERCEL + CROSS DOMAIN + iOS)
-const generateToken = (res, userId) => {
-    const token = jwt.sign({ userId }, process.env.JWT_SECRET, {
-        expiresIn: '30d',
-    });
-
-    res.cookie('jwt', token, {
-        httpOnly: true,
-        secure: true,          // Required for HTTPS (Vercel)
-        sameSite: 'none',      // Required for cross-domain
-        partitioned: true,     // Helps with iOS/Safari ITP
-        maxAge: 30 * 24 * 60 * 60 * 1000,
-        path: '/',
-    });
-};
+// Token generation moved to utils/cookieUtils.js
 
 // ================= GOOGLE LOGIN =================
 
@@ -46,7 +33,7 @@ export const googleAuth = async (req, res) => {
         const user = await getOrCreateOAuthUser('google', googleUser);
 
         // ✅ Generate JWT Cookie
-        generateToken(res, user._id);
+        setAuthCookie(res, user._id);
 
         res.status(200).json({
             message: 'Logged in successfully',
@@ -91,7 +78,7 @@ export const facebookAuth = async (req, res) => {
         });
 
         // ✅ Generate JWT Cookie
-        generateToken(res, user._id);
+        setAuthCookie(res, user._id);
 
         res.status(200).json({
             message: 'Logged in successfully',
