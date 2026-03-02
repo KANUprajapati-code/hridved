@@ -73,4 +73,39 @@ const clearCart = async (req, res) => {
     }
 };
 
-export { getCart, addToCart, removeFromCart, clearCart };
+// @desc    Merge guest cart items with user cart
+// @route   POST /api/cart/merge
+// @access  Private
+const mergeCart = async (req, res) => {
+    const { cartItems } = req.body;
+
+    if (!cartItems || !Array.isArray(cartItems)) {
+        res.status(400);
+        throw new Error('Invalid cart items');
+    }
+
+    let cart = await Cart.findOne({ user: req.user._id });
+
+    if (!cart) {
+        cart = await Cart.create({ user: req.user._id, cartItems: [] });
+    }
+
+    cartItems.forEach((newItem) => {
+        const existItem = cart.cartItems.find(
+            (x) => x.product.toString() === newItem.product.toString()
+        );
+
+        if (existItem) {
+            // Update quantity if item exists (take the larger one or guest one)
+            existItem.qty = newItem.qty;
+        } else {
+            // Add new item from guest cart
+            cart.cartItems.push(newItem);
+        }
+    });
+
+    await cart.save();
+    res.json(cart);
+};
+
+export { getCart, addToCart, removeFromCart, clearCart, mergeCart };
