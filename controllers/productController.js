@@ -91,6 +91,7 @@ const createProduct = async (req, res) => {
     const product = new Product({
         name: 'Sample name',
         price: 0,
+        mrp: 0,
         user: req.user._id,
         image: '/images/sample.jpg',
         category: 'Sample category',
@@ -113,6 +114,7 @@ const updateProduct = async (req, res) => {
     const {
         name,
         price,
+        mrp,
         description,
         image,
         images,
@@ -129,6 +131,7 @@ const updateProduct = async (req, res) => {
     if (product) {
         product.name = name;
         product.price = price;
+        product.mrp = mrp || product.mrp;
         product.description = description;
         product.image = image;
         product.images = images || product.images;
