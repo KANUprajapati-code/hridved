@@ -261,13 +261,15 @@ const cancelBooking = async (req, res, next) => {
 // @access  Private/Admin
 const updateBooking = async (req, res, next) => {
     try {
-        const { status, prescription, notes } = req.body;
+        const { status, prescription, notes, googleMeetLink, meetingStatus } = req.body;
         const booking = await DoctorBooking.findByIdAndUpdate(
             req.params.id,
             {
                 status,
                 prescription,
                 notes,
+                googleMeetLink,
+                meetingStatus,
             },
             { new: true }
         ).populate('doctorId');
