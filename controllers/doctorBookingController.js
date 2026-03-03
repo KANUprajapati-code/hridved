@@ -32,8 +32,19 @@ const initiateBookingPayment = async (req, res, next) => {
         } = req.body;
 
         // Validate required fields
-        if (!doctorId || !patientName || !patientEmail || !patientPhone || !appointmentDate || !appointmentTime || !amount) {
-            return res.status(400).json({ message: 'Missing required fields' });
+        const requiredFields = { doctorId, doctorName, patientName, patientEmail, patientPhone, appointmentDate, appointmentTime, amount };
+        const missingFields = Object.keys(requiredFields).filter(key =>
+            requiredFields[key] === undefined ||
+            requiredFields[key] === null ||
+            requiredFields[key] === ''
+        );
+
+        if (missingFields.length > 0) {
+            console.log('[DOCTOR-BOOKING] Missing fields:', missingFields);
+            return res.status(400).json({
+                success: false,
+                message: `Missing required fields: ${missingFields.join(', ')}`
+            });
         }
 
         // Check if slot is already booked
@@ -46,6 +57,7 @@ const initiateBookingPayment = async (req, res, next) => {
         });
 
         if (existingBooking) {
+            console.log('[DOCTOR-BOOKING] Slot already booked or pending:', { doctorId, dateObj, appointmentTime });
             return res.status(400).json({ message: 'This time slot is already booked or being processed' });
         }
 
