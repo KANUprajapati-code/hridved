@@ -31,7 +31,7 @@ const addToCart = async (req, res) => {
     if (existItem) {
         existItem.qty = qty;
     } else {
-        cart.cartItems.push({ product, name, qty, image, price });
+        cart.cartItems.push({ product, name, qty, image, price, gst });
     }
 
     await cart.save();

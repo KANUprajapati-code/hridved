@@ -43,8 +43,19 @@ export const createCheckoutOrder = async (req, res) => {
             return res.status(403).json({ success: false, message: 'Not authorized to use this address' });
         }
 
-        // Calculate tax (simplified - 5% GST)
-        const taxPrice = Math.round(itemsPrice * 0.05 * 100) / 100;
+        // Calculate tax based on product-specific GST rates
+        let taxPrice = 0;
+        const productIds = orderItems.map(item => item.product);
+        const Product = (await import('../models/Product.js')).default;
+        const products = await Product.find({ _id: { $in: productIds } });
+
+        orderItems.forEach(item => {
+            const product = products.find(p => p._id.toString() === item.product.toString());
+            const gstRate = product ? (product.gst / 100) : 0;
+            taxPrice += item.price * item.qty * gstRate;
+        });
+
+        taxPrice = Math.round(taxPrice * 100) / 100;
 
         // Create order
         const order = new Order({

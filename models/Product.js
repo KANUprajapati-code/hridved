@@ -82,6 +82,11 @@ const productSchema = mongoose.Schema({
         type: Boolean,
         default: false,
     },
+    gst: {
+        type: Number,
+        required: true,
+        default: 0,
+    },
     reviews: [reviewSchema],
 }, {
     timestamps: true,
