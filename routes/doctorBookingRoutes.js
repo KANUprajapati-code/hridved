@@ -7,6 +7,7 @@ import {
     getBooking,
     cancelBooking,
     updateBooking,
+    getBookedSlots,
 } from '../controllers/doctorBookingController.js';
 import { protect, admin } from '../middleware/authMiddleware.js';
 
@@ -15,6 +16,7 @@ const router = express.Router();
 // Payment routes (public)
 router.post('/doctor-booking', initiateBookingPayment);
 router.post('/verify-doctor-booking', verifyBookingPayment);
+router.get('/booked-slots/:doctorId/:date', getBookedSlots);
 
 // Booking routes (private)
 router.get('/', protect, getUserBookings);

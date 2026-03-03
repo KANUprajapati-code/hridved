@@ -16,9 +16,6 @@ const getRazorpayInstance = () => {
     return new Razorpay({ key_id, key_secret });
 };
 
-// @desc    Initiate doctor booking payment
-// @route   POST /api/payment/doctor-booking
-// @access  Public
 const initiateBookingPayment = async (req, res, next) => {
     try {
         const {
@@ -37,6 +34,19 @@ const initiateBookingPayment = async (req, res, next) => {
         // Validate required fields
         if (!doctorId || !patientName || !patientEmail || !patientPhone || !appointmentDate || !appointmentTime || !amount) {
             return res.status(400).json({ message: 'Missing required fields' });
+        }
+
+        // Check if slot is already booked
+        const dateObj = new Date(appointmentDate);
+        const existingBooking = await DoctorBooking.findOne({
+            doctorId,
+            appointmentDate: dateObj,
+            appointmentTime,
+            status: { $in: ['confirmed', 'pending'] } // Check both confirmed and pending
+        });
+
+        if (existingBooking) {
+            return res.status(400).json({ message: 'This time slot is already booked or being processed' });
         }
 
         const razorpay = getRazorpayInstance();
@@ -63,7 +73,7 @@ const initiateBookingPayment = async (req, res, next) => {
             patientEmail,
             patientPhone,
             consultationType,
-            appointmentDate: new Date(appointmentDate),
+            appointmentDate: dateObj,
             appointmentTime,
             issue,
             amount,
@@ -80,6 +90,27 @@ const initiateBookingPayment = async (req, res, next) => {
             amount: amount * 100,
             bookingId: booking._id,
         });
+    } catch (error) {
+        next(error);
+    }
+};
+
+// @desc    Get booked slots for a doctor on a specific date
+// @route   GET /api/doctor-bookings/booked-slots/:doctorId/:date
+// @access  Public
+const getBookedSlots = async (req, res, next) => {
+    try {
+        const { doctorId, date } = req.params;
+        const dateObj = new Date(date);
+
+        const bookings = await DoctorBooking.find({
+            doctorId,
+            appointmentDate: dateObj,
+            status: { $in: ['confirmed', 'pending'] }
+        }).select('appointmentTime');
+
+        const bookedSlots = bookings.map(b => b.appointmentTime);
+        res.json(bookedSlots);
     } catch (error) {
         next(error);
     }
@@ -247,4 +278,5 @@ export {
     getBooking,
     cancelBooking,
     updateBooking,
+    getBookedSlots,
 };

@@ -1,0 +1,13 @@
+{
+  "source": "bayad, Gujarat",
+  "destination": "Mumbai, Maharashtra",
+  "source_pincode": "383325",
+  "destination_pincode": "400001",
+  "zone": "Roi",
+  "pickup": "Yes",
+  "delivery": "Yes",
+  "cod": "Yes",
+  "status": true,
+  "response": "Valid and servicable pincodes.",
+  "labelurl": ""
+}

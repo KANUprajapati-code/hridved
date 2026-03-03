@@ -1,0 +1,189 @@
+{
+  "metadata": {
+    "timestamp": "2026-03-03T05:49:44.149Z",
+    "baseUrl": "https://capi-qc.fship.in",
+    "apiKeyUsed": "085c3..."
+  },
+  "tests": [
+    {
+      "config": {
+        "header": "signature",
+        "prefix": null,
+        "endpoint": "https://capi-qc.fship.in/api/pincodeserviceability"
+      },
+      "response": {
+        "source": "bayad, Gujarat",
+        "destination": "Mumbai, Maharashtra",
+        "source_pincode": "383325",
+        "destination_pincode": "400001",
+        "zone": "Roi",
+        "pickup": "Yes",
+        "delivery": "Yes",
+        "cod": "Yes",
+        "status": true,
+        "response": "Valid and servicable pincodes.",
+        "labelurl": ""
+      },
+      "error": null,
+      "success": true
+    },
+    {
+      "config": {
+        "header": "signature",
+        "prefix": "Bearer",
+        "endpoint": "https://capi-qc.fship.in/api/pincodeserviceability"
+      },
+      "response": {
+        "source": "bayad, Gujarat",
+        "destination": "Mumbai, Maharashtra",
+        "source_pincode": "383325",
+        "destination_pincode": "400001",
+        "zone": "Roi",
+        "pickup": "Yes",
+        "delivery": "Yes",
+        "cod": "Yes",
+        "status": true,
+        "response": "Valid and servicable pincodes.",
+        "labelurl": ""
+      },
+      "error": null,
+      "success": true
+    },
+    {
+      "config": {
+        "header": "signature",
+        "prefix": "bearer",
+        "endpoint": "https://capi-qc.fship.in/api/pincodeserviceability"
+      },
+      "response": {
+        "source": "bayad, Gujarat",
+        "destination": "Mumbai, Maharashtra",
+        "source_pincode": "383325",
+        "destination_pincode": "400001",
+        "zone": "Roi",
+        "pickup": "Yes",
+        "delivery": "Yes",
+        "cod": "Yes",
+        "status": true,
+        "response": "Valid and servicable pincodes.",
+        "labelurl": ""
+      },
+      "error": null,
+      "success": true
+    },
+    {
+      "config": {
+        "header": "Authorization",
+        "prefix": null,
+        "endpoint": "https://capi-qc.fship.in/api/pincodeserviceability"
+      },
+      "response": null,
+      "error": {
+        "message": "Request failed with status code 401",
+        "status": 401,
+        "data": {
+          "type": "https://tools.ietf.org/html/rfc9110#section-15.5.2",
+          "title": "Unauthorized",
+          "status": 401,
+          "traceId": "00-fb1d1d185fe4408861753f1ee84b8444-39ce32d3d00906c4-00"
+        }
+      },
+      "success": false
+    },
+    {
+      "config": {
+        "header": "Authorization",
+        "prefix": "Bearer",
+        "endpoint": "https://capi-qc.fship.in/api/pincodeserviceability"
+      },
+      "response": null,
+      "error": {
+        "message": "Request failed with status code 401",
+        "status": 401,
+        "data": {
+          "type": "https://tools.ietf.org/html/rfc9110#section-15.5.2",
+          "title": "Unauthorized",
+          "status": 401,
+          "traceId": "00-61ed4e59fa0062bd786cc56eca9664d3-5dc6c73cbed18083-00"
+        }
+      },
+      "success": false
+    },
+    {
+      "config": {
+        "header": "Authorization",
+        "prefix": "bearer",
+        "endpoint": "https://capi-qc.fship.in/api/pincodeserviceability"
+      },
+      "response": null,
+      "error": {
+        "message": "Request failed with status code 401",
+        "status": 401,
+        "data": {
+          "type": "https://tools.ietf.org/html/rfc9110#section-15.5.2",
+          "title": "Unauthorized",
+          "status": 401,
+          "traceId": "00-210e04e47963c9968e8f2d4a4a166925-4dcdf8e162e10cf7-00"
+        }
+      },
+      "success": false
+    },
+    {
+      "config": {
+        "header": "Token",
+        "prefix": null,
+        "endpoint": "https://capi-qc.fship.in/api/pincodeserviceability"
+      },
+      "response": null,
+      "error": {
+        "message": "Request failed with status code 401",
+        "status": 401,
+        "data": {
+          "type": "https://tools.ietf.org/html/rfc9110#section-15.5.2",
+          "title": "Unauthorized",
+          "status": 401,
+          "traceId": "00-e620c31770700f6d51a7ecfef41155b2-c381863ed5339ff5-00"
+        }
+      },
+      "success": false
+    },
+    {
+      "config": {
+        "header": "Token",
+        "prefix": "Bearer",
+        "endpoint": "https://capi-qc.fship.in/api/pincodeserviceability"
+      },
+      "response": null,
+      "error": {
+        "message": "Request failed with status code 401",
+        "status": 401,
+        "data": {
+          "type": "https://tools.ietf.org/html/rfc9110#section-15.5.2",
+          "title": "Unauthorized",
+          "status": 401,
+          "traceId": "00-3f8bcb36cc09cd0eedd65d4b5a2bd8c4-c635e396a2d9a2a1-00"
+        }
+      },
+      "success": false
+    },
+    {
+      "config": {
+        "header": "Token",
+        "prefix": "bearer",
+        "endpoint": "https://capi-qc.fship.in/api/pincodeserviceability"
+      },
+      "response": null,
+      "error": {
+        "message": "Request failed with status code 401",
+        "status": 401,
+        "data": {
+          "type": "https://tools.ietf.org/html/rfc9110#section-15.5.2",
+          "title": "Unauthorized",
+          "status": 401,
+          "traceId": "00-dcfec9ed43206f42a02bb6163b5bb54b-dd85a0fa6fe2cf9d-00"
+        }
+      },
+      "success": false
+    }
+  ]
+}
