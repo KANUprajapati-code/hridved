@@ -1,5 +1,7 @@
 import DoctorBooking from '../models/DoctorBooking.js';
 import Doctor from '../models/Doctor.js';
+import Coupon from '../models/Coupon.js';
+import whatsappService from '../utils/whatsappService.js';
 import Razorpay from 'razorpay';
 import crypto from 'crypto';
 
@@ -29,6 +31,7 @@ const initiateBookingPayment = async (req, res, next) => {
             patientPhone,
             issue,
             amount,
+            couponCode,
         } = req.body;
 
         // Validate required fields
@@ -61,13 +64,43 @@ const initiateBookingPayment = async (req, res, next) => {
             return res.status(400).json({ message: 'This time slot is already booked or being processed' });
         }
 
+        let finalAmount = amount;
+        let couponDiscount = 0;
+
+        if (couponCode) {
+            const coupon = await Coupon.findOne({ code: couponCode.toUpperCase(), isActive: true });
+            if (!coupon) {
+                return res.status(404).json({ message: 'Invalid or inactive promo code' });
+            }
+
+            // Check expiry
+            if (coupon.expiryDate < new Date()) {
+                return res.status(400).json({ message: 'Promo code has expired' });
+            }
+
+            // Check min order amount
+            if (amount < coupon.minOrderAmount) {
+                return res.status(400).json({ message: `Minimum amount of ₹${coupon.minOrderAmount} required for this coupon` });
+            }
+
+            // Calculate discount
+            if (coupon.type === 'percentage') {
+                couponDiscount = (amount * coupon.discount) / 100;
+            } else {
+                couponDiscount = coupon.discount;
+            }
+
+            finalAmount = amount - couponDiscount;
+            if (finalAmount < 0) finalAmount = 0;
+        }
+
         const razorpay = getRazorpayInstance();
         if (!razorpay) {
             return res.status(500).json({ message: 'Payment gateway not configured' });
         }
 
         const options = {
-            amount: amount * 100, // Razorpay expects amount in paise
+            amount: Math.round(finalAmount * 100), // Razorpay expects amount in paise
             currency: 'INR',
             receipt: `doctor-booking-${Date.now()}`,
         };
@@ -88,7 +121,10 @@ const initiateBookingPayment = async (req, res, next) => {
             appointmentDate: dateObj,
             appointmentTime,
             issue,
-            amount,
+            amount: finalAmount,
+            originalAmount: amount,
+            couponCode: couponCode ? couponCode.toUpperCase() : undefined,
+            couponDiscount,
             orderId: order.id,
             status: 'pending',
         });
@@ -99,7 +135,7 @@ const initiateBookingPayment = async (req, res, next) => {
             success: true,
             razorpayOrderId: order.id,
             razorpayKeyId: process.env.RAZORPAY_KEY_ID,
-            amount: amount * 100,
+            amount: Math.round(finalAmount * 100),
             bookingId: booking._id,
         });
     } catch (error) {
@@ -158,6 +194,9 @@ const verifyBookingPayment = async (req, res, next) => {
         if (!booking) {
             return res.status(404).json({ success: false, message: 'Booking not found' });
         }
+
+        // Send WhatsApp notification
+        await whatsappService.sendBookingConfirmation(booking);
 
         res.json({
             success: true,

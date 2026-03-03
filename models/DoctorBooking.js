@@ -68,6 +68,16 @@ const doctorBookingSchema = mongoose.Schema(
         googleMeetLink: {
             type: String,
         },
+        originalAmount: {
+            type: Number,
+        },
+        couponCode: {
+            type: String,
+        },
+        couponDiscount: {
+            type: Number,
+            default: 0,
+        },
         meetingStatus: {
             type: String,
             enum: ['not_scheduled', 'scheduled', 'completed', 'failed'],
