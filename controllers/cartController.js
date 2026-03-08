@@ -18,7 +18,7 @@ const getCart = async (req, res) => {
 // @route   POST /api/cart
 // @access  Private
 const addToCart = async (req, res) => {
-    const { product, name, qty, image, price } = req.body;
+    const { product, name, qty, image, price, gst } = req.body;
 
     let cart = await Cart.findOne({ user: req.user._id });
 
@@ -26,12 +26,19 @@ const addToCart = async (req, res) => {
         cart = await Cart.create({ user: req.user._id, cartItems: [] });
     }
 
-    const existItem = cart.cartItems.find((x) => x.product.toString() === product);
+    const existItem = cart.cartItems.find((x) => String(x.product) === String(product));
 
     if (existItem) {
         existItem.qty = qty;
     } else {
-        cart.cartItems.push({ product, name, qty, image, price, gst });
+        cart.cartItems.push({ 
+            product, 
+            name, 
+            qty, 
+            image, 
+            price, 
+            gst: gst || 0 
+        });
     }
 
     await cart.save();
@@ -45,8 +52,9 @@ const removeFromCart = async (req, res) => {
     let cart = await Cart.findOne({ user: req.user._id });
 
     if (cart) {
+        const idToRemove = String(req.params.id);
         cart.cartItems = cart.cartItems.filter(
-            (x) => x.product.toString() !== req.params.id
+            (x) => String(x.product) !== idToRemove
         );
 
         await cart.save();
@@ -92,7 +100,7 @@ const mergeCart = async (req, res) => {
 
     cartItems.forEach((newItem) => {
         const existItem = cart.cartItems.find(
-            (x) => x.product.toString() === newItem.product.toString()
+            (x) => String(x.product) === String(newItem.product)
         );
 
         if (existItem) {
