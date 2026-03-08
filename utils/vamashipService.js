@@ -46,7 +46,8 @@ export const getVamashipRates = async (rateData) => {
   // Auth variations to probe (Focus on top two)
   const authHeaders = [
     { name: 'Authorization', prefix: 'Bearer ' },
-    { name: 'X-Vamaship-Token', prefix: '' }
+    { name: 'X-Vamaship-Token', prefix: '' },
+    { name: 'x-token', prefix: '' }
   ];
 
   let lastErr;
@@ -71,7 +72,10 @@ export const getVamashipRates = async (rateData) => {
         return data;
       } catch (error) {
         lastErr = error;
-        console.log(`[VAMASHIP RETRY] FAILED: ${path} (${auth.name}) -> ${error.response?.status || error.message}`);
+        console.warn(`[VAMASHIP RETRY] FAILED: ${path} (${auth.name}) -> ${error.response?.status || error.message}`);
+        if (error.response?.data) {
+          console.warn(`[VAMASHIP RETRY ERROR DATA]:`, JSON.stringify(error.response.data));
+        }
       }
     }
   }
@@ -89,7 +93,9 @@ export const createVamashipForwardOrder = async (shipmentData) => {
     } catch (error) {
       lastErr = error;
       console.warn(`[VAMASHIP] Create endpoint ${path} failed:`, error.response?.status || error.message);
-      if (error.response?.data) console.debug('[VAMASHIP] Create error data:', JSON.stringify(error.response.data));
+      if (error.response?.data) {
+        console.warn(`[VAMASHIP CREATE ERROR DATA] ${path}:`, JSON.stringify(error.response.data));
+      }
     }
   }
   throw formatVamashipError(lastErr || new Error('No create endpoint candidates tried'));
