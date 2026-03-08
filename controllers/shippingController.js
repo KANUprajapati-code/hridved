@@ -20,41 +20,26 @@ export const checkServiceability = async (req, res) => {
         if (config.shipping.vamashipEnabled) {
             try {
                 const vamashipPayload = {
-                    type: "prepaid",
-                    subtype: "general",
-                    origin: sourcePincode,
                     destination: pincode,
                     weight: 0.5,
-                    seller: {
-                        name: "Hridved Ayurveda",
-                        pincode: sourcePincode,
-                        city: "Dhansura",
-                        state: "Gujarat",
-                        country: "India",
-                        phone: "9876543210",
-                        email: "hridved@gmail.com",
-                        address: "Plot No. 123, Modasa Road"
-                    },
-                    shipments: [{
-                        weight: 0.5,
-                        length: 10,
-                        width: 10,
-                        height: 10,
-                        value: 500
-                    }]
+                    value: 500
                 };
                 const vamashipData = await getVamashipRates(vamashipPayload);
 
-                if (vamashipData && vamashipData.status === 'success' && vamashipData.data?.rates) {
-                    vamashipData.data.rates.forEach(rate => {
-                        shippingOptions.push({
-                            type: rate.courier_name,
-                            days: rate.estimated_delivery_days || '3-5',
-                            charge: rate.total_charge,
-                            description: `${rate.courier_name} (${rate.estimated_delivery_days} days)`,
-                            provider: 'Vamaship'
+                // Surface API response: { status_code:200, success:true, quotes:[{ suppliers:[] }] }
+                if (vamashipData && vamashipData.success && vamashipData.quotes && vamashipData.quotes.length > 0) {
+                    const quoteObj = vamashipData.quotes[0];
+                    if (quoteObj.suppliers && quoteObj.suppliers.length > 0) {
+                        quoteObj.suppliers.forEach(supplier => {
+                            shippingOptions.push({
+                                type: supplier.supplier_id ? `Vamaship-${supplier.supplier_id}` : 'Standard',
+                                days: supplier.duration || '3-5',
+                                charge: Math.ceil(supplier.shipping_cost || 0),
+                                description: `Vamaship Surface (${supplier.duration || '3-5'} days)`,
+                                provider: 'Vamaship'
+                            });
                         });
-                    });
+                    }
                 }
             } catch (vamashipError) {
                 console.warn('Vamaship rates check failed:', vamashipError.message);
