@@ -1,59 +1,58 @@
 import cron from 'node-cron';
 import Order from '../models/Order.js';
-import { getFshipShipmentSummary } from '../utils/fshipService.js';
+import { trackVamashipShipment } from '../utils/vamashipService.js';
 
 /**
- * Update tracking status for all Shipped orders
+ * Update tracking status for all Shipped orders using Vamaship
  */
 const updateShipmentStatuses = async () => {
-    console.log('Cron Job: Updating Shipment Statuses...');
+    console.log('Cron Job: Updating Vamaship Shipment Statuses...');
 
     try {
-        // Fetch all orders with Shipped status that have a waybill
         const orders = await Order.find({
-            shippingStatus: 'Shipped',
+            shippingStatus: { $in: ['Shipped', 'Shipping Pending'] },
             waybill: { $exists: true, $ne: '' },
-            shippingProvider: 'Fship'
+            shippingProvider: 'Vamaship'
         });
 
-        console.log(`Found ${orders.length} orders to update.`);
+        console.log(`Found ${orders.length} Vamaship orders to update.`);
 
         for (const order of orders) {
             try {
-                const result = await getFshipShipmentSummary(order.waybill);
+                const result = await trackVamashipShipment(order.waybill);
 
-                if (result && result.status === true) {
-                    const summary = result.summary;
+                if (result && result.status === "success" && result.data) {
+                    const trackData = result.data;
+                    const status = trackData.status || 'Shipped';
+                    
+                    order.trackingStatus = status;
 
-                    // Update tracking fields
-                    order.trackingStatus = summary.status;
-
-                    if (summary.status === 'Delivered') {
+                    if (status === 'Delivered') {
                         order.shippingStatus = 'Delivered';
                         order.isDelivered = true;
-                        order.deliveredAt = new Date(summary.lastscanned || Date.now());
-                    } else if (summary.status === 'RTO' || summary.status.includes('Returned')) {
+                        order.deliveredAt = new Date();
+                    } else if (status === 'RTO' || status.toLowerCase().includes('returned')) {
                         order.shippingStatus = 'RTO';
+                    } else if (status === 'Shipped' || status === 'In Transit') {
+                        order.shippingStatus = 'Shipped';
                     }
 
                     await order.save();
-                    console.log(`Updated Order ${order._id} (Waybill: ${order.waybill}) to Status: ${summary.status}`);
+                    console.log(`Updated Vamaship Order ${order._id} to Status: ${status}`);
                 }
             } catch (err) {
-                console.error(`Failed to update Order ${order._id}:`, err.message);
+                console.error(`Failed to update Vamaship Order ${order._id}:`, err.message);
             }
         }
     } catch (error) {
-        console.error('Tracking Cron Error:', error);
+        console.error('Vamaship Tracking Cron Error:', error);
     }
 };
 
 // Run every 6 hours
-// 0 0 */6 * * *
 export const initTrackingCron = () => {
     cron.schedule('0 0 */6 * * *', updateShipmentStatuses);
-    console.log('Tracking Cron Initialized (Every 6 hours)');
+    console.log('Vamaship Tracking Cron Initialized (Every 6 hours)');
 };
 
-// For manual trigger/test
 export { updateShipmentStatuses };

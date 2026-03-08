@@ -14,7 +14,7 @@ import { protect, admin } from '../middleware/authMiddleware.js';
 const router = express.Router();
 
 // Health check
-router.get('/health', testFshipApi);
+router.get('/health', testApi);
 
 // Public/User routes
 router.post('/serviceability', checkServiceability);

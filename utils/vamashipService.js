@@ -27,7 +27,6 @@ export const vamashipClient = axios.create({
 console.log(`[VAMASHIP] Client Configured. BaseURL: ${VAMASHIP_BASE_URL}`);
 
 vamashipClient.interceptors.request.use((config) => {
-  console.log(`[VAMASHIP] Request: ${String(config.method).toUpperCase()} ${config.baseURL}${config.url}`);
   return config;
 });
 
