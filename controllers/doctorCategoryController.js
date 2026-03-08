@@ -1,4 +1,4 @@
-import asyncHandler from '../middleware/asyncHandler.js';
+import asyncHandler from 'express-async-handler';
 import DoctorCategory from '../models/DoctorCategory.js';
 
 // @desc    Get all doctor categories
