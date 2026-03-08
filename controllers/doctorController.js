@@ -74,7 +74,8 @@ const updateDoctor = async (req, res) => {
         tags,
         quote,
         available,
-        isVerified
+        isVerified,
+        timeSlots
     } = req.body;
 
     const doctor = await Doctor.findById(req.params.id);
@@ -91,6 +92,7 @@ const updateDoctor = async (req, res) => {
         doctor.quote = quote;
         doctor.available = available;
         doctor.isVerified = isVerified;
+        doctor.timeSlots = timeSlots;
 
         const updatedDoctor = await doctor.save();
         res.json(updatedDoctor);
