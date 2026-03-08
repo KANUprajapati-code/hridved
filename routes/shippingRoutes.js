@@ -7,7 +7,7 @@ import {
     registerPickup,
     getLabels,
     createReverseOrder,
-    testFshipApi
+    testApi
 } from '../controllers/shippingController.js';
 import { protect, admin } from '../middleware/authMiddleware.js';
 
