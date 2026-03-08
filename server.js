@@ -126,6 +126,7 @@ app.use('/api/contact', contactRoutes);
 app.use('/api/content', contentRoutes);
 app.use('/api/upload', uploadRoutes);
 app.use('/api/doctors', doctorRoutes);
+app.use('/api/doctor-categories', doctorCategoryRoutes);
 app.use('/api/tips', tipRoutes);
 app.use('/api/payment', paymentRoutes);
 app.use('/api/razorpay', razorpayRoutes);

@@ -44,6 +44,9 @@ const doctorSchema = mongoose.Schema({
         type: Boolean,
         default: true,
     },
+    timeSlots: [{
+        type: String,
+    }],
 }, {
     timestamps: true,
 });

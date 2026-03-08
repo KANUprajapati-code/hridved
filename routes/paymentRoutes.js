@@ -6,7 +6,13 @@ import { protect } from '../middleware/authMiddleware.js';
 dotenv.config();
 
 const router = express.Router();
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+const stripeSecretKey = process.env.STRIPE_SECRET_KEY || '';
+let stripe;
+if (stripeSecretKey) {
+    stripe = new Stripe(stripeSecretKey);
+} else {
+    console.warn('[STRIPE] Warning: STRIPE_SECRET_KEY is missing. Payments will not work.');
+}
 
 // @desc    Get Stripe Publishable Key
 // @route   GET /api/payment/stripe/config
@@ -27,6 +33,9 @@ router.post('/create-intent', protect, async (req, res) => {
     }
 
     try {
+        if (!stripe) {
+            return res.status(500).json({ success: false, message: 'Stripe is not configured' });
+        }
         console.log(`[STRIPE] Creating Intent: ${amount} ${currency}`);
         const paymentIntent = await stripe.paymentIntents.create({
             amount: Math.round(amount * 100), // convert to smallest currency unit
