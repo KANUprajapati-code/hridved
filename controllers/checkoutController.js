@@ -25,8 +25,8 @@ export const createCheckoutOrder = async (req, res) => {
             return res.status(400).json({ success: false, message: 'Missing required fields' });
         }
 
-        // Validate delivery option
-        if (!['Standard', 'Express'].includes(deliveryOption)) {
+        // Delivery option validation - accept Standard/Express or any Vamaship courier option
+        if (typeof deliveryOption !== 'string' || deliveryOption.trim() === '') {
             return res.status(400).json({ success: false, message: 'Invalid delivery option' });
         }
 
