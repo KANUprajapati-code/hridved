@@ -100,6 +100,7 @@ import contactRoutes from './routes/contactRoutes.js';
 import contentRoutes from './routes/contentRoutes.js';
 import uploadRoutes from './routes/uploadRoutes.js';
 import doctorRoutes from './routes/doctorRoutes.js';
+import doctorCategoryRoutes from './routes/doctorCategoryRoutes.js';
 import tipRoutes from './routes/tipRoutes.js';
 import paymentRoutes from './routes/paymentRoutes.js';
 import razorpayRoutes from './routes/razorpayRoutes.js';
