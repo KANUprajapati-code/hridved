@@ -73,7 +73,6 @@ const orderSchema = mongoose.Schema({
     estimatedDelivery: { type: Date },
     deliveryOption: {
         type: String,
-        enum: ['Standard', 'Express'],
         default: 'Standard',
     },
     estimatedDeliveryDays: {
