@@ -132,6 +132,27 @@ export const cancelVamashipShipment = async (awb) => {
 };
 
 // -----------------------------------------------
+// GET ORDER DETAILS (for Polling AWB)
+// Endpoint: GET /surface/details/{id} or /details/{id}
+// -----------------------------------------------
+export const getVamashipOrderDetails = async (id) => {
+  try {
+    console.log(`[VAMASHIP] Fetching details for ID: ${id}`);
+    // Try surface details first
+    try {
+      const response = await vamashipClient.get(`/surface/details/${encodeURIComponent(id)}`);
+      return response.data;
+    } catch (e) {
+      // Fallback to generic details
+      const response = await vamashipClient.get(`/details/${encodeURIComponent(id)}`);
+      return response.data;
+    }
+  } catch (error) {
+    throw formatVamashipError(error);
+  }
+};
+
+// -----------------------------------------------
 // PROCESS FULL SHIPMENT BOOKING for an Order
 // -----------------------------------------------
 export const processVamashipShipment = async (orderId) => {
@@ -141,6 +162,8 @@ export const processVamashipShipment = async (orderId) => {
 
     if (!order) throw new Error('Order not found');
     if (order.waybill) return { success: true, waybill: order.waybill };
+
+    console.log(`[VAMASHIP] Processing shipment for Order: ${order.orderId || order._id}`);
 
     // Build payload using official Vamaship Surface API structure
     const payload = {
@@ -191,6 +214,7 @@ export const processVamashipShipment = async (orderId) => {
     };
 
     const result = await createVamashipForwardOrder(payload);
+    console.log(`[VAMASHIP] API Result:`, JSON.stringify(result));
 
     // Check for success (status_code 200 or 300 for pending)
     if (result && (result.status_code === 200 || result.success === true)) {
@@ -198,13 +222,20 @@ export const processVamashipShipment = async (orderId) => {
         const shipData = result.shipments[0];
         order.waybill = shipData.awb || order.waybill;
         order.apiOrderId = String(shipData.order_id || '');
-        order.shippingStatus = 'Shipped';
+        
+        if (order.waybill) {
+          order.shippingStatus = 'Shipped';
+        } else {
+          order.shippingStatus = 'Shipping Pending';
+          // If no AWB but we have order_id, we'll poll for it
+        }
+        
         order.shippingProvider = 'Vamaship';
         await order.save();
-        return { success: true, waybill: order.waybill };
+        return { success: true, waybill: order.waybill, refid: order.apiOrderId };
       } else if (result.refid) {
         // Processing asynchronously, save refid for polling
-        order.apiOrderId = result.refid;
+        order.apiOrderId = String(result.refid);
         order.shippingStatus = 'Shipping Pending';
         order.shippingProvider = 'Vamaship';
         await order.save();
@@ -212,8 +243,14 @@ export const processVamashipShipment = async (orderId) => {
       }
     }
 
-    order.shippingStatus = 'Shipping Pending';
-    await order.save();
+    // Even if it failed to return an AWB immediately, we mark as pending if we got some ID
+    if (result && result.details?.refid) {
+        order.apiOrderId = String(result.details.refid);
+        order.shippingStatus = 'Shipping Pending';
+        await order.save();
+        return { success: true, refid: order.apiOrderId, waybill: null };
+    }
+
     return { success: false, details: result };
   } catch (error) {
     console.error('[VAMASHIP] Shipment Processing Error:', error.message || error);

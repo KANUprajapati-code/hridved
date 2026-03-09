@@ -34,7 +34,7 @@ export const checkServiceability = async (req, res) => {
                             shippingOptions.push({
                                 type: supplier.supplier_id ? `Vamaship-${supplier.supplier_id}` : 'Standard',
                                 days: supplier.duration || '3-5',
-                                charge: Math.ceil(supplier.shipping_cost || 0),
+                                charge: 50, // Flat rate of 50 as requested
                                 description: `Vamaship Surface (${supplier.duration || '3-5'} days)`,
                                 provider: 'Vamaship'
                             });
@@ -133,11 +133,40 @@ export const trackShipment = async (req, res) => {
             const order = await Order.findById(waybill);
             if (order && order.waybill) {
                 waybill = order.waybill;
+            } else if (order && order.apiOrderId) {
+                // Try fetching AWB on-demand if we have a refid/order_id but no waybill
+                try {
+                    const { getVamashipOrderDetails } = await import('../utils/vamashipService.js');
+                    const details = await getVamashipOrderDetails(order.apiOrderId);
+                    if (details && details.success && details.shipments && details.shipments.length > 0) {
+                        const shipData = details.shipments[0];
+                        if (shipData.awb) {
+                            order.waybill = shipData.awb;
+                            order.shippingStatus = 'Shipped';
+                            await order.save();
+                            waybill = order.waybill;
+                        } else {
+                            return res.status(202).json({ 
+                                message: 'Booking is being processed by Vamaship. Please check back in a few minutes.',
+                                status: 'Processing'
+                            });
+                        }
+                    } else {
+                        return res.status(202).json({ 
+                            message: 'Booking is being processed by Vamaship. Please check back in a few minutes.',
+                            status: 'Processing'
+                        });
+                    }
+                } catch (err) {
+                    console.error('On-demand polling error:', err);
+                    return res.status(400).json({ message: 'Order found but no Waybill assigned yet.' });
+                }
             } else if (order) {
                 return res.status(400).json({ message: 'Order found but no Waybill assigned yet.' });
             }
         }
 
+        const { trackVamashipShipment } = await import('../utils/vamashipService.js');
         const result = await trackVamashipShipment(waybill);
         if (result && result.status === "success" && result.data) {
             const trackData = result.data;
@@ -172,15 +201,15 @@ export const getTrackingHistory = async (req, res) => {
     const { waybill } = req.params;
     try {
         const result = await trackVamashipShipment(waybill);
-        if (result && result.status === "success" && result.data?.history) {
+        if (result && result.success && result.data?.history) {
             const history = result.data.history.map(item => ({
-                dateAndTime: new Date(item.date_time),
-                status: item.status,
-                remark: item.activity,
-                location: item.location
+                dateAndTime: new Date(item.date_time || item.timestamp || Date.now()),
+                status: item.status || 'Processed',
+                remark: item.activity || item.remark || 'Shipment status updated',
+                location: item.location || 'In Transit'
             }));
             await Order.findOneAndUpdate({ waybill }, { trackingHistory: history });
-            return res.json({ status: true, trackingdata: result.data.history });
+            return res.json({ status: true, trackingdata: history });
         }
 
         res.status(404).json({ message: 'Tracking history not found' });
