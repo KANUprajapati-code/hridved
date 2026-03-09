@@ -209,13 +209,31 @@ export const processVamashipShipment = async (orderId) => {
         reference1: order.orderId || order._id.toString(),
 
         // Map all order items to line_items inside this single shipment
-        line_items: order.orderItems.map(item => ({
-          product_name: item.name,
-          quantity: item.qty,
-          weight: item.weight || 0.5,
-          weight_unit: 'kg',
-          price: item.price
-        }))
+        // Important: Add shipping and taxes as line items if it's a COD order 
+        // to ensure product_value matches the cod_value
+        line_items: [
+          ...order.orderItems.map(item => ({
+            product_name: item.name,
+            quantity: item.qty,
+            weight: item.weight || 0.1,
+            weight_unit: 'kg',
+            price: Math.round(item.price)
+          })),
+          ...(order.shippingPrice > 0 ? [{
+            product_name: 'Shipping Charges',
+            quantity: 1,
+            weight: 0,
+            weight_unit: 'kg',
+            price: Math.round(order.shippingPrice)
+          }] : []),
+          ...(order.taxPrice > 0 ? [{
+            product_name: 'Tax/GST',
+            quantity: 1,
+            weight: 0,
+            weight_unit: 'kg',
+            price: Math.round(order.taxPrice)
+          }] : [])
+        ]
       }]
     };
 
@@ -224,11 +242,15 @@ export const processVamashipShipment = async (orderId) => {
     console.log(`[VAMASHIP] FULL API RESPONSE:`, JSON.stringify(result, null, 2));
 
     // Check for success (status_code 200 or 300 for pending)
-    if (result && (result.status_code === 200 || result.success === true)) {
-      if (result.shipments && result.shipments.length > 0) {
-        const shipData = result.shipments[0];
-        order.waybill = shipData.awb || order.waybill;
-        order.apiOrderId = String(shipData.order_id || shipData.id || '');
+    // Surface API often returns success inside a 'quotes' or 'shipments' array
+    const isSuccess = result && (result.success === true || result.status_code === 200);
+    
+    if (isSuccess) {
+      const shipData = (result.shipments && result.shipments[0]) || (result.quotes && result.quotes[0]);
+      
+      if (shipData && shipData.success !== false) {
+        order.waybill = shipData.awb || shipData.waybill || order.waybill;
+        order.apiOrderId = String(shipData.order_id || shipData.id || shipData.refid || result.id || '');
         
         if (order.waybill) {
           order.shippingStatus = 'Shipped';
@@ -240,21 +262,17 @@ export const processVamashipShipment = async (orderId) => {
         await order.save();
         console.log(`[VAMASHIP] Saved AWB: ${order.waybill}, RefID: ${order.apiOrderId}`);
         return { success: true, waybill: order.waybill, refid: order.apiOrderId };
-      } else if (result.refid || result.id) {
-        // Processing asynchronously, save refid for polling
-        order.apiOrderId = String(result.refid || result.id);
-        order.shippingStatus = 'Shipping Pending';
-        order.shippingProvider = 'Vamaship';
-        await order.save();
-        console.log(`[VAMASHIP] Saved RefID only: ${order.apiOrderId}`);
-        return { success: true, refid: order.apiOrderId, waybill: null };
       }
     }
+
+    // Fail case with details
+    const failedMsg = result?.quotes?.[0]?.messages?.[0] || result?.message || 'Shipment booking failed';
+    console.warn(`[VAMASHIP] Booking failed with: ${failedMsg}`);
 
     // Final fallback: check for any identifying fields in the top level of the response
     if (result && !order.apiOrderId) {
         order.apiOrderId = String(result.id || result.order_id || result.shipment_id || result.refid || '');
-        if (order.apiOrderId) {
+        if (order.apiOrderId && order.apiOrderId !== 'undefined') {
             order.shippingStatus = 'Shipping Pending';
             order.shippingProvider = 'Vamaship';
             await order.save();
@@ -263,7 +281,7 @@ export const processVamashipShipment = async (orderId) => {
         }
     }
 
-    return { success: false, details: result };
+    return { success: false, details: result, message: failedMsg };
   } catch (error) {
     console.error('[VAMASHIP] Shipment Processing Error:', error.message || error);
     throw error;

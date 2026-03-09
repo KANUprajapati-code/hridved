@@ -177,7 +177,7 @@ export const trackShipment = async (req, res) => {
                         });
                     } else {
                         return res.status(400).json({ 
-                            message: 'Order found but shipment booking failed. Please contact support.',
+                            message: result.message || 'Order found but shipment booking failed. Please contact support.',
                             details: result.details
                         });
                     }
