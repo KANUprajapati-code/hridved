@@ -166,6 +166,7 @@ export const processVamashipShipment = async (orderId) => {
     console.log(`[VAMASHIP] Processing shipment for Order: ${order.orderId || order._id}`);
 
     // Build payload using official Vamaship Surface API structure
+    // We send ONE shipment with multiple line items, not multiple shipments
     const payload = {
       seller: {
         name: process.env.SELLER_NAME || 'Hridved Ayurveda',
@@ -177,7 +178,7 @@ export const processVamashipShipment = async (orderId) => {
         country: 'India',
         pincode: process.env.VAMASHIP_PICKUP_PINCODE || '383325'
       },
-      shipments: order.orderItems.map(item => ({
+      shipments: [{
         // Consignee details (flat structure per Vamaship API spec)
         name: order.shippingAddress.fullName,
         phone: order.shippingAddress.mobileNumber,
@@ -190,11 +191,16 @@ export const processVamashipShipment = async (orderId) => {
 
         // Shipment details
         is_cod: order.paymentMethod === 'COD',
+        // COD value must be the full amount to collect
         cod_value: order.paymentMethod === 'COD' ? Math.round(order.totalPrice) : 0,
-        product: item.name,
-        product_value: Math.round(item.price * item.qty),
-        quantity: item.qty,
-        weight: String(item.weight || 0.5),
+        
+        // Vamaship requires product_value >= cod_value
+        // We set product_value to the total order price to include shipping/taxes in the declared value
+        product: order.orderItems.map(i => i.name).join(', ').substring(0, 100),
+        product_value: Math.max(Math.round(order.totalPrice), Math.round(order.itemsPrice)),
+        
+        quantity: order.orderItems.reduce((acc, item) => acc + item.qty, 0),
+        weight: String(order.orderItems.reduce((acc, item) => acc + (item.weight || 0.5) * item.qty, 0)),
         length: '10',
         breadth: '10',
         height: '10',
@@ -202,15 +208,15 @@ export const processVamashipShipment = async (orderId) => {
         surface_category: 'b2c',
         reference1: order.orderId || order._id.toString(),
 
-        // Line items
-        line_items: [{
+        // Map all order items to line_items inside this single shipment
+        line_items: order.orderItems.map(item => ({
           product_name: item.name,
           quantity: item.qty,
           weight: item.weight || 0.5,
           weight_unit: 'kg',
           price: item.price
-        }]
-      }))
+        }))
+      }]
     };
 
     console.log(`[VAMASHIP] PAYLOAD:`, JSON.stringify(payload, null, 2));
