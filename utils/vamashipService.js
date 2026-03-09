@@ -213,41 +213,46 @@ export const processVamashipShipment = async (orderId) => {
       }))
     };
 
+    console.log(`[VAMASHIP] PAYLOAD:`, JSON.stringify(payload, null, 2));
     const result = await createVamashipForwardOrder(payload);
-    console.log(`[VAMASHIP] API Result:`, JSON.stringify(result));
+    console.log(`[VAMASHIP] FULL API RESPONSE:`, JSON.stringify(result, null, 2));
 
     // Check for success (status_code 200 or 300 for pending)
     if (result && (result.status_code === 200 || result.success === true)) {
       if (result.shipments && result.shipments.length > 0) {
         const shipData = result.shipments[0];
         order.waybill = shipData.awb || order.waybill;
-        order.apiOrderId = String(shipData.order_id || '');
+        order.apiOrderId = String(shipData.order_id || shipData.id || '');
         
         if (order.waybill) {
           order.shippingStatus = 'Shipped';
         } else {
           order.shippingStatus = 'Shipping Pending';
-          // If no AWB but we have order_id, we'll poll for it
         }
         
         order.shippingProvider = 'Vamaship';
         await order.save();
+        console.log(`[VAMASHIP] Saved AWB: ${order.waybill}, RefID: ${order.apiOrderId}`);
         return { success: true, waybill: order.waybill, refid: order.apiOrderId };
-      } else if (result.refid) {
+      } else if (result.refid || result.id) {
         // Processing asynchronously, save refid for polling
-        order.apiOrderId = String(result.refid);
+        order.apiOrderId = String(result.refid || result.id);
         order.shippingStatus = 'Shipping Pending';
         order.shippingProvider = 'Vamaship';
         await order.save();
-        return { success: true, refid: result.refid, waybill: null };
+        console.log(`[VAMASHIP] Saved RefID only: ${order.apiOrderId}`);
+        return { success: true, refid: order.apiOrderId, waybill: null };
       }
     }
 
     // Even if it failed to return an AWB immediately, we mark as pending if we got some ID
-    if (result && result.details?.refid) {
-        order.apiOrderId = String(result.details.refid);
+    if (result && (result.details?.refid || result.details?.id)) {
+        order.apiOrderId = String(result.details.refid || result.details.id);
         order.shippingStatus = 'Shipping Pending';
         await order.save();
+        console.log(`[VAMASHIP] Saved RefID from details: ${order.apiOrderId}`);
+        return { success: true, refid: order.apiOrderId, waybill: null };
+    }
         return { success: true, refid: order.apiOrderId, waybill: null };
     }
 
