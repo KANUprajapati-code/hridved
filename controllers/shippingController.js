@@ -162,7 +162,29 @@ export const trackShipment = async (req, res) => {
                     return res.status(400).json({ message: 'Order found but no Waybill assigned yet.' });
                 }
             } else if (order) {
-                return res.status(400).json({ message: 'Order found but no Waybill assigned yet.' });
+                // If apiOrderId is missing, try to trigger the shipment creation now
+                try {
+                    console.log(`[TRACKING] No ID found for order ${order._id}, triggering shipment creation now.`);
+                    const { processVamashipShipment } = await import('../utils/vamashipService.js');
+                    const result = await processVamashipShipment(order._id);
+                    
+                    if (result.success && result.waybill) {
+                        waybill = result.waybill;
+                    } else if (result.success && (result.refid || result.id || result.order_id)) {
+                        return res.status(202).json({ 
+                            message: 'Shipment booking initiated. Please check back in a few minutes.',
+                            status: 'Processing'
+                        });
+                    } else {
+                        return res.status(400).json({ 
+                            message: 'Order found but shipment booking failed. Please contact support.',
+                            details: result.details
+                        });
+                    }
+                } catch (shipError) {
+                    console.error('[TRACKING] Failed to auto-trigger shipment:', shipError);
+                    return res.status(400).json({ message: 'Order found but no Waybill assigned yet.' });
+                }
             }
         }
 

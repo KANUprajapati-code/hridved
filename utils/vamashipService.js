@@ -245,15 +245,16 @@ export const processVamashipShipment = async (orderId) => {
       }
     }
 
-    // Even if it failed to return an AWB immediately, we mark as pending if we got some ID
-    if (result && (result.details?.refid || result.details?.id)) {
-        order.apiOrderId = String(result.details.refid || result.details.id);
-        order.shippingStatus = 'Shipping Pending';
-        await order.save();
-        console.log(`[VAMASHIP] Saved RefID from details: ${order.apiOrderId}`);
-        return { success: true, refid: order.apiOrderId, waybill: null };
-    }
-        return { success: true, refid: order.apiOrderId, waybill: null };
+    // Final fallback: check for any identifying fields in the top level of the response
+    if (result && !order.apiOrderId) {
+        order.apiOrderId = String(result.id || result.order_id || result.shipment_id || result.refid || '');
+        if (order.apiOrderId) {
+            order.shippingStatus = 'Shipping Pending';
+            order.shippingProvider = 'Vamaship';
+            await order.save();
+            console.log(`[VAMASHIP] Saved fallback ID: ${order.apiOrderId}`);
+            return { success: true, refid: order.apiOrderId, waybill: null };
+        }
     }
 
     return { success: false, details: result };
