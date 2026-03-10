@@ -16,7 +16,7 @@ console.log(`[VAMASHIP] Service Configured. BaseURL: ${VAMASHIP_BASE_URL}`);
 
 export const vamashipClient = axios.create({
   baseURL: VAMASHIP_BASE_URL,
-  timeout: 25000,
+  timeout: 60000,
   headers: {
     'Content-Type': 'application/json',
     'Accept': 'application/json',
