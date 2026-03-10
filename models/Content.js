@@ -17,7 +17,8 @@ const contentSchema = mongoose.Schema({
         title: String,
         description: String,
         image: String,
-        link: String
+        link: String,
+        icon: String
     }]
 }, {
     timestamps: true,
