@@ -102,6 +102,7 @@ const createProduct = async (req, res) => {
         benefits: 'Sample benefits',
         howToUse: 'Sample how to use',
         gst: 0,
+        weight: 0.5,
     });
 
     const createdProduct = await product.save();
@@ -126,6 +127,7 @@ const updateProduct = async (req, res) => {
         benefits,
         howToUse,
         gst,
+        weight,
     } = req.body;
 
     const product = await Product.findById(req.params.id);
@@ -144,6 +146,7 @@ const updateProduct = async (req, res) => {
         product.benefits = benefits || product.benefits;
         product.howToUse = howToUse || product.howToUse;
         product.gst = gst || product.gst;
+        product.weight = weight || product.weight;
 
         const updatedProduct = await product.save();
         res.json(updatedProduct);
