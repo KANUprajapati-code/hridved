@@ -23,7 +23,7 @@ export const checkServiceability = async (req, res) => {
             try {
                 const vamashipPayload = {
                     destination: pincode,
-                    weight: 0.5,
+                    weight: Number(req.body.weight) || 0.5,
                     value: orderValue || 500
                 };
                 const vamashipData = await getVamashipRates(vamashipPayload);

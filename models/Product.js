@@ -87,6 +87,11 @@ const productSchema = mongoose.Schema({
         required: true,
         default: 0,
     },
+    weight: {
+        type: Number,
+        required: true,
+        default: 0.5, // Default weight in kg
+    },
     reviews: [reviewSchema],
 }, {
     timestamps: true,

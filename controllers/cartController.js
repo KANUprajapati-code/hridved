@@ -18,7 +18,7 @@ const getCart = async (req, res) => {
 // @route   POST /api/cart
 // @access  Private
 const addToCart = async (req, res) => {
-    const { product, name, qty, image, price, gst } = req.body;
+    const { product, name, qty, image, price, gst, weight } = req.body;
 
     let cart = await Cart.findOne({ user: req.user._id });
 
@@ -37,7 +37,8 @@ const addToCart = async (req, res) => {
             qty, 
             image, 
             price, 
-            gst: gst || 0 
+            gst: gst || 0,
+            weight: weight || 0.5
         });
     }
 
