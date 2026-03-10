@@ -9,7 +9,7 @@ const __dirname = path.dirname(__filename);
 
 dotenv.config({ path: path.join(__dirname, '../.env') });
 
-const VAMASHIP_BASE_URL = (process.env.VAMASHIP_BASE_URL || 'https://api.vamaship.com/ecom/v1').replace(/\/+$/, '');
+const VAMASHIP_BASE_URL = (process.env.VAMASHIP_BASE_URL || 'https://ecom.vamaship.com/ecom/api/v1').replace(/\/+$/, '');
 const VAMASHIP_TOKEN = process.env.VAMASHIP_TOKEN;
 
 console.log(`[VAMASHIP] Service Configured. BaseURL: ${VAMASHIP_BASE_URL}`);
@@ -236,6 +236,39 @@ export const processVamashipShipment = async (orderId) => {
         ]
       }]
     };
+
+    // Fetch rates to automatically select the cheapest supplier (excluding Amazon if possible)
+    let cheapestSupplierId = null;
+    try {
+      const ratePayload = {
+        destination: order.shippingAddress.pincode,
+        weight: payload.shipments[0].weight,
+        value: payload.shipments[0].product_value,
+        buyerCity: order.shippingAddress.city,
+        buyerState: order.shippingAddress.state
+      };
+      const rates = await getVamashipRates(ratePayload);
+      if (rates && rates.success && rates.quotes && rates.quotes.length > 0) {
+        const suppliers = rates.quotes[0].suppliers || [];
+        // Filter out Amazon as requested by user ("amazon ko nhi")
+        const validSuppliers = suppliers.filter(s => !s.supplier.toLowerCase().includes('amazon'));
+        const sourceSuppliers = validSuppliers.length > 0 ? validSuppliers : suppliers;
+
+        if (sourceSuppliers.length > 0) {
+          const cheapest = sourceSuppliers.reduce((prev, curr) => 
+            (Number(prev.shipping_cost || prev.charge || 9999) < Number(curr.shipping_cost || curr.charge || 9999)) ? prev : curr
+          );
+          cheapestSupplierId = cheapest.supplier_id;
+          console.log(`[VAMASHIP] Automatically selected cheapest supplier: ${cheapest.supplier} (ID: ${cheapest.supplier_id}) at cost: ${cheapest.shipping_cost || cheapest.charge}`);
+        }
+      }
+    } catch (rateErr) {
+      console.warn('[VAMASHIP] Could not fetch rates for auto-selection, proceeding with default...', rateErr.message);
+    }
+
+    if (cheapestSupplierId) {
+      payload.shipments[0].supplier_id = cheapestSupplierId;
+    }
 
     console.log(`[VAMASHIP] PAYLOAD:`, JSON.stringify(payload, null, 2));
     const result = await createVamashipForwardOrder(payload);
