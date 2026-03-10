@@ -57,6 +57,8 @@ export const createCheckoutOrder = async (req, res) => {
 
         taxPrice = Math.round(taxPrice * 100) / 100;
 
+        const codPrice = paymentMethod === 'COD' ? 50 : 0;
+
         // Create order
         const order = new Order({
             user: req.user._id,
@@ -77,7 +79,8 @@ export const createCheckoutOrder = async (req, res) => {
             itemsPrice,
             taxPrice,
             shippingPrice,
-            totalPrice: itemsPrice + taxPrice + shippingPrice,
+            codPrice,
+            totalPrice: itemsPrice + taxPrice + shippingPrice + codPrice,
             paymentMethod: paymentMethod,
             shippingProvider: shippingProvider,
             isPaid: false,
