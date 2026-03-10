@@ -26,6 +26,7 @@ const updateAbout = async (req, res) => {
         about.heroImage = req.body.heroImage || about.heroImage;
         about.ourStoryTitle = req.body.ourStoryTitle || about.ourStoryTitle;
         about.ourStoryDescription = req.body.ourStoryDescription || about.ourStoryDescription;
+        about.ourStoryImage = req.body.ourStoryImage || about.ourStoryImage;
         about.foundedYear = req.body.foundedYear || about.foundedYear;
         about.experiseCount = req.body.experiseCount || about.experiseCount;
         about.healedCount = req.body.healedCount || about.healedCount;

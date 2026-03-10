@@ -7,6 +7,7 @@ const aboutSchema = mongoose.Schema({
 
     ourStoryTitle: { type: String, default: "A Century of Healing" },
     ourStoryDescription: { type: String, default: "Founded in 1921..." }, // Will store HTML or long text
+    ourStoryImage: { type: String, default: "https://images.unsplash.com/photo-1612170153139-6f881ff067e0?q=80&w=1000&auto=format&fit=crop" },
     foundedYear: { type: String, default: "1921" },
     experiseCount: { type: String, default: "500+" }, // Products
     healedCount: { type: String, default: "3M+" },
