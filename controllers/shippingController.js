@@ -33,11 +33,14 @@ export const checkServiceability = async (req, res) => {
                     const quoteObj = vamashipData.quotes[0];
                     if (quoteObj.suppliers && quoteObj.suppliers.length > 0) {
                         quoteObj.suppliers.forEach(supplier => {
+                            // Use actual API rate if available, fall back to 50 if API data is missing
+                            const liveRate = Math.round(Number(supplier.shipping_cost || supplier.charge || 50));
+                            
                             shippingOptions.push({
                                 type: supplier.supplier_id ? `Vamaship-${supplier.supplier_id}` : 'Standard',
                                 days: supplier.duration || '3-5',
-                                charge: shippingCharge, // Apply dynamic charge based on order value
-                                description: `Vamaship Surface (${supplier.duration || '3-5'} days)`,
+                                charge: orderValue >= 499 ? 0 : liveRate, // Apply free shipping logic to live rates
+                                description: `${supplier.supplier || 'Vamaship Surface'} (${supplier.duration || '3-5'} days)`,
                                 provider: 'Vamaship'
                             });
                         });

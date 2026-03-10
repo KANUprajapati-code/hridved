@@ -12,6 +12,7 @@ const addOrderItems = async (req, res) => {
         itemsPrice,
         taxPrice,
         shippingPrice,
+        codPrice,
         totalPrice,
         shippingProvider,
     } = req.body;
@@ -28,6 +29,7 @@ const addOrderItems = async (req, res) => {
             itemsPrice,
             taxPrice,
             shippingPrice,
+            codPrice,
             totalPrice,
             shippingProvider,
         });
