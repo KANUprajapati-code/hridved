@@ -11,10 +11,12 @@ import Order from '../models/Order.js';
 // @route   POST /api/shipping/serviceability
 // @access  Public
 export const checkServiceability = async (req, res) => {
-    const { pincode, sourcePincode = '383325' } = req.body;
+    const { pincode, value, sourcePincode = '383325' } = req.body;
     try {
         let shippingOptions = [];
         const config = await SystemConfig.findOne() || { shipping: { vamashipEnabled: true } };
+        const orderValue = Number(value) || 0;
+        const shippingCharge = orderValue >= 499 ? 0 : 50;
 
         // Vamaship Rates
         if (config.shipping.vamashipEnabled) {
@@ -22,7 +24,7 @@ export const checkServiceability = async (req, res) => {
                 const vamashipPayload = {
                     destination: pincode,
                     weight: 0.5,
-                    value: 500
+                    value: orderValue || 500
                 };
                 const vamashipData = await getVamashipRates(vamashipPayload);
 
@@ -34,7 +36,7 @@ export const checkServiceability = async (req, res) => {
                             shippingOptions.push({
                                 type: supplier.supplier_id ? `Vamaship-${supplier.supplier_id}` : 'Standard',
                                 days: supplier.duration || '3-5',
-                                charge: 50, // Flat rate of 50 as requested
+                                charge: shippingCharge, // Apply dynamic charge based on order value
                                 description: `Vamaship Surface (${supplier.duration || '3-5'} days)`,
                                 provider: 'Vamaship'
                             });
@@ -56,14 +58,14 @@ export const checkServiceability = async (req, res) => {
                 {
                     type: 'Standard',
                     days: '3-5',
-                    charge: 0,
+                    charge: shippingCharge,
                     description: 'Standard Delivery (3-5 days)',
                     provider: 'Vamaship'
                 },
                 {
                     type: 'Express',
                     days: '1-2',
-                    charge: 99,
+                    charge: shippingCharge === 0 ? 49 : 99, // Lower express if standard is free
                     description: 'Express Delivery (1-2 days)',
                     provider: 'Vamaship'
                 }
