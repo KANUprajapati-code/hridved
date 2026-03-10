@@ -18,7 +18,16 @@ export const checkServiceability = async (req, res) => {
         const orderValue = Number(value) || 0;
         const shippingCharge = orderValue >= 499 ? 0 : 50;
 
-        // Vamaship Rates
+        // Use a flat ₹50 charge (₹0 if free shipping applies)
+        shippingOptions.push({
+            type: 'Standard',
+            days: '3-5',
+            charge: shippingCharge,
+            description: 'Standard Delivery (3-5 days)',
+            provider: 'Vamaship'
+        });
+
+        // Still check Vamaship for serviceability if enabled, but don't use their rates
         if (config.shipping.vamashipEnabled) {
             try {
                 const vamashipPayload = {
@@ -26,31 +35,10 @@ export const checkServiceability = async (req, res) => {
                     weight: Number(req.body.weight) || 0.5,
                     value: orderValue || 500
                 };
-                const vamashipData = await getVamashipRates(vamashipPayload);
-
-                // Surface API response: { status_code:200, success:true, quotes:[{ suppliers:[] }] }
-                if (vamashipData && vamashipData.success && vamashipData.quotes && vamashipData.quotes.length > 0) {
-                    const quoteObj = vamashipData.quotes[0];
-                    if (quoteObj.suppliers && quoteObj.suppliers.length > 0) {
-                        quoteObj.suppliers.forEach(supplier => {
-                            // Use actual API rate if available, fall back to 50 if API data is missing
-                            const liveRate = Math.round(Number(supplier.shipping_cost || supplier.charge || 50));
-                            
-                            shippingOptions.push({
-                                type: supplier.supplier_id ? `Vamaship-${supplier.supplier_id}` : 'Standard',
-                                days: supplier.duration || '3-5',
-                                charge: orderValue >= 499 ? 0 : liveRate, // Apply free shipping logic to live rates
-                                description: `${supplier.supplier || 'Vamaship Surface'} (${supplier.duration || '3-5'} days)`,
-                                provider: 'Vamaship'
-                            });
-                        });
-                    }
-                }
+                // We call it just to ensure the destination is valid/serviceable
+                await getVamashipRates(vamashipPayload);
             } catch (vamashipError) {
-                console.warn('Vamaship rates check failed:', vamashipError.message);
-                if (vamashipError.data) {
-                    console.warn('Vamaship Error Data:', JSON.stringify(vamashipError.data, null, 2));
-                }
+                console.warn('Vamaship serviceability check failed:', vamashipError.message);
             }
         }
 
