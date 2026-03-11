@@ -107,14 +107,32 @@ export const createVamashipForwardOrder = async (shipmentData) => {
 
 // -----------------------------------------------
 // TRACK SHIPMENT
-// Endpoint: GET /track/{order_ids}
+// Endpoints: 
+// GET /track/:order_ids (for Vamaship Order IDs)
+// GET /trackawb/:trackIds (for AWB Numbers)
 // -----------------------------------------------
-export const trackVamashipShipment = async (awb) => {
+export const trackVamashipShipment = async (trackId) => {
   try {
-    // Try tracking by AWB first, then by order_id
-    const response = await vamashipClient.get(`/track/${encodeURIComponent(awb)}`);
-    return response.data;
+    // Basic logic to guess if it's an AWB or Order ID
+    // AWBs are usually longer or contain specific prefixes, but we can just try /trackawb first
+    // as it's the most common for 'tracking' links
+    console.log(`[VAMASHIP] Tracking ID: ${trackId}`);
+    
+    try {
+      // Try AWB tracking first (most common for surface)
+      const respAwb = await vamashipClient.get(`/trackawb/${encodeURIComponent(trackId)}`);
+      if (respAwb.data && respAwb.data.status === 'success' && respAwb.data.data) {
+        return respAwb.data;
+      }
+    } catch (awbErr) {
+      console.log(`[VAMASHIP] AWB tracking failed for ${trackId}, trying Order ID tracking...`);
+    }
+
+    // Fallback to Order ID tracking
+    const respOrder = await vamashipClient.get(`/track/${encodeURIComponent(trackId)}`);
+    return respOrder.data;
   } catch (error) {
+    console.error(`[VAMASHIP] Tracking failed for ${trackId}:`, error.message);
     throw formatVamashipError(error);
   }
 };
