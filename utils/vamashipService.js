@@ -151,21 +151,28 @@ export const cancelVamashipShipment = async (awb) => {
 
 // -----------------------------------------------
 // GET ORDER DETAILS (for Polling AWB)
-// Endpoint: GET /surface/details/{id} or /details/{id}
+// Endpoint: GET /details/{id}
+// Official term: Polling API for Surface B2C refid
 // -----------------------------------------------
 export const getVamashipOrderDetails = async (id) => {
   try {
-    console.log(`[VAMASHIP] Fetching details for ID: ${id}`);
-    // Try surface details first
-    try {
-      const response = await vamashipClient.get(`/surface/details/${encodeURIComponent(id)}`);
-      return response.data;
-    } catch (e) {
-      // Fallback to generic details
-      const response = await vamashipClient.get(`/details/${encodeURIComponent(id)}`);
+    console.log(`[VAMASHIP] Polling details for RefID: ${id}`);
+    const response = await vamashipClient.get(`/details/${encodeURIComponent(id)}`);
+    
+    // Success check
+    if (response.data && response.data.status_code === 200 && response.data.success) {
       return response.data;
     }
+    
+    // Fallback/Retry logic for surface-specific details if needed
+    try {
+      const respSurface = await vamashipClient.get(`/surface/details/${encodeURIComponent(id)}`);
+      return respSurface.data;
+    } catch (e) {
+      return response.data; // Return original response if fallback fails
+    }
   } catch (error) {
+    console.error(`[VAMASHIP] Polling failed for ${id}:`, error.message);
     throw formatVamashipError(error);
   }
 };

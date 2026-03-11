@@ -131,28 +131,36 @@ export const trackShipment = async (req, res) => {
                 try {
                     const { getVamashipOrderDetails } = await import('../utils/vamashipService.js');
                     const details = await getVamashipOrderDetails(order.apiOrderId);
+                    
+                    // Documentation says shipments is an array, let's look for awb there
                     if (details && details.success && details.shipments && details.shipments.length > 0) {
                         const shipData = details.shipments[0];
                         if (shipData.awb) {
+                            console.log(`[TRACKING] Successfully polled AWB: ${shipData.awb} for Order: ${order._id}`);
                             order.waybill = shipData.awb;
+                            // Also update Vamaship's internal Order ID if it was just a RefID before
+                            if (shipData.order_id) {
+                                order.apiOrderId = String(shipData.order_id);
+                            }
                             order.shippingStatus = 'Shipped';
                             await order.save();
                             waybill = order.waybill;
                         } else {
+                            console.log(`[TRACKING] Polled but no AWB yet for RefID: ${order.apiOrderId}`);
                             return res.status(202).json({ 
-                                message: 'Booking is being processed by Vamaship. Please check back in a few minutes.',
+                                message: 'Booking is still being processed by Vamaship. AWB not yet assigned.',
                                 status: 'Processing'
                             });
                         }
                     } else {
                         return res.status(202).json({ 
-                            message: 'Booking is being processed by Vamaship. Please check back in a few minutes.',
+                            message: 'Booking details received but no shipment data found. Checking again later.',
                             status: 'Processing'
                         });
                     }
                 } catch (err) {
                     console.error('On-demand polling error:', err);
-                    return res.status(400).json({ message: 'Order found but no Waybill assigned yet.' });
+                    return res.status(400).json({ message: 'Error checking shipment status with Vamaship.' });
                 }
             } else if (order) {
                 // If apiOrderId is missing, try to trigger the shipment creation now
