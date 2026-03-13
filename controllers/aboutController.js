@@ -34,6 +34,7 @@ const updateAbout = async (req, res) => {
         about.missionDescription = req.body.missionDescription || about.missionDescription;
         about.visionTitle = req.body.visionTitle || about.visionTitle;
         about.visionDescription = req.body.visionDescription || about.visionDescription;
+        console.log('Updating About Us values:', req.body.values);
         about.values = req.body.values !== undefined ? req.body.values : about.values;
         about.teamImage1 = req.body.teamImage1 || about.teamImage1;
         about.teamImage2 = req.body.teamImage2 || about.teamImage2;
@@ -41,6 +42,7 @@ const updateAbout = async (req, res) => {
         about.teamImage4 = req.body.teamImage4 || about.teamImage4;
 
         const updatedAbout = await about.save();
+        console.log('Saved About Us. Values count:', updatedAbout.values?.length);
         res.json(updatedAbout);
     } else {
         // Should not happen if getAbout creates default, but for safety
