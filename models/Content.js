@@ -10,6 +10,8 @@ const contentSchema = mongoose.Schema({
     title: { type: String },
     subtitle: { type: String },
     image: { type: String },
+    image1: { type: String },
+    image2: { type: String },
     ctaText: { type: String },
     ctaLink: { type: String },
     // Flexible fields for different section types
