@@ -20,6 +20,7 @@ const authUser = async (req, res) => {
             name: user.name,
             email: user.email,
             isAdmin: user.isAdmin,
+            token: setAuthCookie(res, user._id),
         });
     } else {
         res.status(401).json({ message: 'Invalid email or password' });
@@ -52,6 +53,7 @@ const registerUser = async (req, res) => {
             name: user.name,
             email: user.email,
             isAdmin: user.isAdmin,
+            token: setAuthCookie(res, user._id),
         });
     } else {
         res.status(400).json({ message: 'Invalid user data' });

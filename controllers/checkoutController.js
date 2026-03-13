@@ -19,7 +19,7 @@ export const createCheckoutOrder = async (req, res) => {
             discountAmount = 0,
         } = req.body;
 
-        console.log(`[CHECKOUT] Creating Order for User: ${req.user._id}, Method: ${paymentMethod}`);
+        console.log(`[CHECKOUT] Creating Order for User: ${req.user._id}, Method: ${paymentMethod}, Discount: ${discountAmount}, Total: ${totalPrice}`);
 
         // Validation
         if (!addressId || !deliveryOption || !orderItems || orderItems.length === 0) {

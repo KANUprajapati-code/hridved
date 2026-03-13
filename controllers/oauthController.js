@@ -38,6 +38,7 @@ export const googleAuth = async (req, res) => {
         res.status(200).json({
             message: 'Logged in successfully',
             user: formatUserResponse(user),
+            token: setAuthCookie(res, user._id),
         });
 
     } catch (error) {
@@ -83,6 +84,7 @@ export const facebookAuth = async (req, res) => {
         res.status(200).json({
             message: 'Logged in successfully',
             user: formatUserResponse(user),
+            token: setAuthCookie(res, user._id),
         });
 
     } catch (error) {
