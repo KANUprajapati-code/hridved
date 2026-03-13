@@ -16,7 +16,7 @@ export const checkServiceability = async (req, res) => {
         let shippingOptions = [];
         const config = await SystemConfig.findOne() || { shipping: { vamashipEnabled: true } };
         const orderValue = Number(value) || 0;
-        const shippingCharge = orderValue >= 499 ? 0 : 50;
+        const shippingCharge = orderValue >= 999 ? 0 : 50;
 
         // Use a flat ₹50 charge (₹0 if free shipping applies)
         shippingOptions.push({
