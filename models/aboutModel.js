@@ -2,13 +2,13 @@ import mongoose from 'mongoose';
 
 const aboutSchema = mongoose.Schema({
     heroTitle: { type: String, required: true, default: "Our Journey" },
-    heroDescription: { type: String, required: true, default: "Bridging the gap between ancient Ayurvedic wisdom and modern holistic wellness since 1921." },
+    heroDescription: { type: String, required: true, default: "Bridging the gap between ancient Ayurvedic wisdom and modern holistic wellness since 2020." },
     heroImage: { type: String, required: true, default: "https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?q=80&w=2040&auto=format&fit=crop" },
 
-    ourStoryTitle: { type: String, default: "A Century of Healing" },
-    ourStoryDescription: { type: String, default: "Founded in 1921..." }, // Will store HTML or long text
+    ourStoryTitle: { type: String, default: "A Legacy of Healing" },
+    ourStoryDescription: { type: String, default: "Founded in 2020..." }, // Will store HTML or long text
     ourStoryImage: { type: String, default: "https://images.unsplash.com/photo-1612170153139-6f881ff067e0?q=80&w=1000&auto=format&fit=crop" },
-    foundedYear: { type: String, default: "1921" },
+    foundedYear: { type: String, default: "2020" },
     experiseCount: { type: String, default: "500+" }, // Products
     healedCount: { type: String, default: "3M+" },
 
