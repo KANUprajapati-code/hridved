@@ -34,7 +34,7 @@ const updateAbout = async (req, res) => {
         about.missionDescription = req.body.missionDescription || about.missionDescription;
         about.visionTitle = req.body.visionTitle || about.visionTitle;
         about.visionDescription = req.body.visionDescription || about.visionDescription;
-        about.values = req.body.values || about.values;
+        about.values = req.body.values !== undefined ? req.body.values : about.values;
         about.teamImage1 = req.body.teamImage1 || about.teamImage1;
         about.teamImage2 = req.body.teamImage2 || about.teamImage2;
         about.teamImage3 = req.body.teamImage3 || about.teamImage3;

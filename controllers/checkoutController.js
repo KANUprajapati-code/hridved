@@ -16,6 +16,7 @@ export const createCheckoutOrder = async (req, res) => {
             totalPrice,
             paymentMethod = 'Razorpay',
             shippingProvider = 'Vamaship',
+            discountAmount = 0,
         } = req.body;
 
         console.log(`[CHECKOUT] Creating Order for User: ${req.user._id}, Method: ${paymentMethod}`);
@@ -80,7 +81,8 @@ export const createCheckoutOrder = async (req, res) => {
             taxPrice,
             shippingPrice,
             codPrice,
-            totalPrice: itemsPrice + taxPrice + shippingPrice + codPrice,
+            discountAmount,
+            totalPrice: itemsPrice + taxPrice + shippingPrice + codPrice - discountAmount,
             paymentMethod: paymentMethod,
             shippingProvider: shippingProvider,
             isPaid: false,
