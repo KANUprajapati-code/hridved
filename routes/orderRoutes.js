@@ -5,6 +5,7 @@ import {
     getOrderById,
     updateOrderToPaid,
     updateOrderToDelivered,
+    updateOrderTracking,
     getMyOrders,
     getOrders,
     createWhatsAppOrder,
@@ -28,5 +29,6 @@ router.route('/:id').get(protect, getOrderById);
 router.route('/:id/pay').put(protect, updateOrderToPaid);
 
 router.route('/:id/deliver').put(protect, admin, updateOrderToDelivered);
+router.route('/:id/tracking').put(protect, admin, updateOrderTracking);
 
 export default router;

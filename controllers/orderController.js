@@ -101,6 +101,24 @@ const updateOrderToDelivered = async (req, res) => {
     }
 };
 
+// @desc    Update order tracking info
+// @route   PUT /api/orders/:id/tracking
+// @access  Private/Admin
+const updateOrderTracking = async (req, res) => {
+    const order = await Order.findById(req.params.id);
+
+    if (order) {
+        order.trackingId = req.body.trackingId || order.trackingId;
+        order.courierName = req.body.courierName || order.courierName;
+
+        const updatedOrder = await order.save();
+        res.json(updatedOrder);
+    } else {
+        res.status(404);
+        throw new Error('Order not found');
+    }
+};
+
 // @desc    Get logged in user orders
 // @route   GET /api/orders/myorders
 // @access  Private
@@ -198,6 +216,7 @@ export {
     getOrderById,
     updateOrderToPaid,
     updateOrderToDelivered,
+    updateOrderTracking,
     getMyOrders,
     getOrders,
     createWhatsAppOrder,
