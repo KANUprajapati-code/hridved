@@ -3,8 +3,16 @@ import mongoose from 'mongoose';
 const orderSchema = mongoose.Schema({
     user: {
         type: mongoose.Schema.Types.ObjectId,
-        required: true,
+        required: false,
         ref: 'User',
+    },
+    orderSource: {
+        type: String,
+        enum: ['Website', 'WhatsApp'],
+        default: 'Website'
+    },
+    email: {
+        type: String
     },
     orderItems: [
         {

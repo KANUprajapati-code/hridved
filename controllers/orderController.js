@@ -117,6 +117,82 @@ const getOrders = async (req, res) => {
     res.json(orders);
 };
 
+// @desc    Create WhatsApp order
+// @route   POST /api/orders/whatsapp
+// @access  Public
+const createWhatsAppOrder = async (req, res) => {
+    try {
+        const {
+            orderItems,
+            shippingAddress,
+            itemsPrice,
+            taxPrice,
+            shippingPrice,
+            totalPrice,
+            discountAmount,
+            email
+        } = req.body;
+
+        if (orderItems && orderItems.length === 0) {
+            res.status(400);
+            return res.json({ message: 'No order items' });
+        }
+
+        const order = new Order({
+            orderItems,
+            shippingAddress,
+            paymentMethod: 'WhatsApp',
+            itemsPrice,
+            taxPrice,
+            shippingPrice,
+            totalPrice,
+            discountAmount,
+            email,
+            orderSource: 'WhatsApp',
+            isPaid: false,
+        });
+
+        const createdOrder = await order.save();
+
+        res.status(201).json(createdOrder);
+    } catch (error) {
+        console.error('Error creating WhatsApp Order:', error);
+        res.status(500).json({ message: 'Failed to create order' });
+    }
+};
+
+// @desc    Track order via mobile or order ID
+// @route   POST /api/orders/track
+// @access  Public
+const trackOrder = async (req, res) => {
+    try {
+        const { query } = req.body;
+        if (!query) {
+            return res.status(400).json({ message: 'Please provide mobile number or order ID' });
+        }
+
+        const isObjectId = /^[0-9a-fA-F]{24}$/.test(query);
+
+        let queryObj = {};
+        if (isObjectId) {
+            queryObj = { _id: query };
+        } else {
+            queryObj = { 'shippingAddress.mobileNumber': query };
+        }
+
+        const orders = await Order.find(queryObj).sort({ createdAt: -1 });
+
+        if (orders && orders.length > 0) {
+            res.json(orders);
+        } else {
+            res.status(404).json({ message: 'No orders found with that information' });
+        }
+    } catch (error) {
+         console.error('Error tracking Order:', error);
+         res.status(500).json({ message: 'Failed to track order' });
+    }
+};
+
 export {
     addOrderItems,
     getOrderById,
@@ -124,4 +200,6 @@ export {
     updateOrderToDelivered,
     getMyOrders,
     getOrders,
+    createWhatsAppOrder,
+    trackOrder,
 };

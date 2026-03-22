@@ -7,10 +7,15 @@ import {
     updateOrderToDelivered,
     getMyOrders,
     getOrders,
+    createWhatsAppOrder,
+    trackOrder,
 } from '../controllers/orderController.js';
 import { protect, admin } from '../middleware/authMiddleware.js';
 
 const router = express.Router();
+
+router.route('/whatsapp').post(createWhatsAppOrder);
+router.route('/track').post(trackOrder);
 
 router.route('/')
     .post(protect, addOrderItems)
