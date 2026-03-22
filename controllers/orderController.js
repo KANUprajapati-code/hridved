@@ -148,7 +148,9 @@ const createWhatsAppOrder = async (req, res) => {
             shippingPrice,
             totalPrice,
             discountAmount,
-            email
+            email,
+            paymentMethod,
+            codPrice
         } = req.body;
 
         if (orderItems && orderItems.length === 0) {
@@ -159,10 +161,11 @@ const createWhatsAppOrder = async (req, res) => {
         const order = new Order({
             orderItems,
             shippingAddress,
-            paymentMethod: 'WhatsApp',
+            paymentMethod: paymentMethod || 'WhatsApp',
             itemsPrice,
             taxPrice,
             shippingPrice,
+            codPrice: codPrice || 0,
             totalPrice,
             discountAmount,
             email,
