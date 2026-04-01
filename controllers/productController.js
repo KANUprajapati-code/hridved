@@ -8,7 +8,8 @@ import Product from '../models/Product.js';
 // @route   GET /api/products
 // @access  Public
 const getProducts = async (req, res) => {
-    const pageSize = 12;
+    const isBestseller = req.query.isBestseller === 'true';
+    const pageSize = isBestseller ? 50 : (Number(req.query.pageSize) || 12);
     const page = Number(req.query.pageNumber) || 1;
 
     const keyword = req.query.keyword ? {
@@ -30,7 +31,7 @@ const getProducts = async (req, res) => {
         if (req.query.maxPrice) keyword.price.$lte = Number(req.query.maxPrice);
     }
 
-    if (req.query.isBestseller) {
+    if (isBestseller) {
         keyword.isBestseller = true;
     }
 
