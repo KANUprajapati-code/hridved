@@ -65,6 +65,7 @@ export const checkServiceability = async (req, res) => {
 
         res.json({
             success: true,
+            serviceability: true,
             shippingOptions
         });
     } catch (error) {
