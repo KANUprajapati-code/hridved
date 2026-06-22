@@ -14,8 +14,8 @@ export const createCheckoutOrder = async (req, res) => {
             itemsPrice,
             shippingPrice,
             totalPrice,
-            paymentMethod = 'Razorpay',
-            shippingProvider = 'Vamaship',
+            paymentMethod = 'COD',
+            shippingProvider = 'Local',
             discountAmount = 0,
         } = req.body;
 
@@ -26,7 +26,7 @@ export const createCheckoutOrder = async (req, res) => {
             return res.status(400).json({ success: false, message: 'Missing required fields' });
         }
 
-        // Delivery option validation - accept Standard/Express or any Vamaship courier option
+        // Delivery option validation - accept Standard/Express
         if (typeof deliveryOption !== 'string' || deliveryOption.trim() === '') {
             return res.status(400).json({ success: false, message: 'Invalid delivery option' });
         }
@@ -55,6 +55,7 @@ export const createCheckoutOrder = async (req, res) => {
             const gstRate = product ? (product.gst / 100) : 0;
             taxPrice += item.price * item.qty * gstRate;
         });
+
 
         taxPrice = Math.round(taxPrice * 100) / 100;
 
@@ -101,24 +102,9 @@ export const createCheckoutOrder = async (req, res) => {
                 console.error('[CHECKOUT] Error clearing cart for COD:', cartError);
             }
 
-            // 2. Trigger Shipment Creation (Non-blocking to avoid frontend 'loading' hang)
-            const triggerShipment = async () => {
-                try {
-                    if (createdOrder.shippingProvider === 'Vamaship') {
-                        const { processVamashipShipment } = await import('../utils/vamashipService.js');
-                        await processVamashipShipment(createdOrder._id);
-                        console.log(`[CHECKOUT] Background Vamaship Shipment triggered for order: ${createdOrder._id}`);
-                    } else {
-                        const { processFshipShipment } = await import('../utils/fshipService.js');
-                        await processFshipShipment(createdOrder._id);
-                        console.log(`[CHECKOUT] Background Fship Shipment triggered for order: ${createdOrder._id}`);
-                    }
-                } catch (shipmentError) {
-                    console.error(`[CHECKOUT] Background Shipment Error for COD (${createdOrder.shippingProvider}):`, shipmentError.message);
-                }
-            };
-
-            triggerShipment(); // Fire and forget
+            // 2. Generate local waybill instantly
+            createdOrder.waybill = `HRD${Math.floor(10000000 + Math.random() * 90000000)}`;
+            await createdOrder.save();
         }
 
         console.log(`[CHECKOUT] Order Created: ${createdOrder._id}`);

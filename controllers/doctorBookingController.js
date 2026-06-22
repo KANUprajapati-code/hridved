@@ -2,21 +2,6 @@ import DoctorBooking from '../models/DoctorBooking.js';
 import Doctor from '../models/Doctor.js';
 import Coupon from '../models/Coupon.js';
 import whatsappService from '../utils/whatsappService.js';
-import Razorpay from 'razorpay';
-import crypto from 'crypto';
-
-// Helper to get Razorpay instance
-const getRazorpayInstance = () => {
-    const key_id = process.env.RAZORPAY_KEY_ID;
-    const key_secret = process.env.RAZORPAY_KEY_SECRET;
-
-    if (!key_id || !key_secret) {
-        console.error('[DOCTOR-BOOKING] Razorpay keys missing in environment');
-        return null;
-    }
-
-    return new Razorpay({ key_id, key_secret });
-};
 
 const initiateBookingPayment = async (req, res, next) => {
     try {
@@ -56,7 +41,7 @@ const initiateBookingPayment = async (req, res, next) => {
             doctorId,
             appointmentDate: dateObj,
             appointmentTime,
-            status: { $in: ['confirmed', 'pending'] } // Check both confirmed and pending
+            status: { $in: ['confirmed', 'pending'] }
         });
 
         if (existingBooking) {
@@ -69,48 +54,23 @@ const initiateBookingPayment = async (req, res, next) => {
 
         if (couponCode) {
             const coupon = await Coupon.findOne({ code: couponCode.toUpperCase(), isActive: true });
-            if (!coupon) {
-                return res.status(404).json({ message: 'Invalid or inactive promo code' });
+            if (coupon) {
+                if (coupon.expiryDate >= new Date() && amount >= coupon.minOrderAmount) {
+                    if (coupon.type === 'percentage') {
+                        couponDiscount = (amount * coupon.discount) / 100;
+                    } else {
+                        couponDiscount = coupon.discount;
+                    }
+                    finalAmount = amount - couponDiscount;
+                    if (finalAmount < 0) finalAmount = 0;
+                }
             }
-
-            // Check expiry
-            if (coupon.expiryDate < new Date()) {
-                return res.status(400).json({ message: 'Promo code has expired' });
-            }
-
-            // Check min order amount
-            if (amount < coupon.minOrderAmount) {
-                return res.status(400).json({ message: `Minimum amount of ₹${coupon.minOrderAmount} required for this coupon` });
-            }
-
-            // Calculate discount
-            if (coupon.type === 'percentage') {
-                couponDiscount = (amount * coupon.discount) / 100;
-            } else {
-                couponDiscount = coupon.discount;
-            }
-
-            finalAmount = amount - couponDiscount;
-            if (finalAmount < 0) finalAmount = 0;
         }
 
-        const razorpay = getRazorpayInstance();
-        if (!razorpay) {
-            return res.status(500).json({ message: 'Payment gateway not configured' });
-        }
+        // Generate mock booking order ID
+        const mockOrderId = `book_${Math.random().toString(36).substring(2, 11).toUpperCase()}`;
 
-        const options = {
-            amount: Math.round(finalAmount * 100), // Razorpay expects amount in paise
-            currency: 'INR',
-            receipt: `doctor-booking-${Date.now()}`,
-        };
-
-        const order = await razorpay.orders.create(options);
-        if (!order) {
-            throw new Error('Failed to create Razorpay order');
-        }
-
-        // Create pending booking record
+        // Create confirmed booking record directly
         const booking = new DoctorBooking({
             doctorId,
             doctorName,
@@ -125,18 +85,25 @@ const initiateBookingPayment = async (req, res, next) => {
             originalAmount: amount,
             couponCode: couponCode ? couponCode.toUpperCase() : undefined,
             couponDiscount,
-            orderId: order.id,
-            status: 'pending',
+            orderId: mockOrderId,
+            status: 'confirmed', // Confirm directly since Razorpay is removed
         });
 
         await booking.save();
 
+        // Send WhatsApp confirmation notification
+        try {
+            await whatsappService.sendBookingConfirmation(booking);
+        } catch (waErr) {
+            console.warn('[DOCTOR-BOOKING] WhatsApp confirmation failed:', waErr.message);
+        }
+
         res.json({
             success: true,
-            razorpayOrderId: order.id,
-            razorpayKeyId: process.env.RAZORPAY_KEY_ID,
-            amount: Math.round(finalAmount * 100),
             bookingId: booking._id,
+            razorpayOrderId: mockOrderId,
+            amount: Math.round(finalAmount * 100),
+            message: 'Booking confirmed successfully'
         });
     } catch (error) {
         next(error);
@@ -169,39 +136,9 @@ const getBookedSlots = async (req, res, next) => {
 // @access  Public
 const verifyBookingPayment = async (req, res, next) => {
     try {
-        const { orderId, paymentId, signature } = req.body;
-
-        // Verify signature
-        const generatedSignature = crypto
-            .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET)
-            .update(`${orderId}|${paymentId}`)
-            .digest('hex');
-
-        if (generatedSignature !== signature) {
-            return res.status(400).json({ success: false, message: 'Invalid payment signature' });
-        }
-
-        // Update booking status
-        const booking = await DoctorBooking.findOneAndUpdate(
-            { orderId },
-            {
-                status: 'confirmed',
-                paymentId,
-            },
-            { new: true }
-        );
-
-        if (!booking) {
-            return res.status(404).json({ success: false, message: 'Booking not found' });
-        }
-
-        // Send WhatsApp notification
-        await whatsappService.sendBookingConfirmation(booking);
-
         res.json({
             success: true,
-            message: 'Payment verified successfully',
-            booking,
+            message: 'Payment verified successfully (Mock)'
         });
     } catch (error) {
         next(error);

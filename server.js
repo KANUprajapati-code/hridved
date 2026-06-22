@@ -38,12 +38,7 @@ app.set('trust proxy', 1);
 
 // Middleware
 app.use(express.json({
-  limit: '10mb',
-  verify: (req, res, buf) => {
-    if (req.originalUrl.includes('/api/razorpay/webhook')) {
-      req.rawBody = buf;
-    }
-  }
+  limit: '10mb'
 }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(cookieParser());
@@ -103,7 +98,6 @@ import doctorRoutes from './routes/doctorRoutes.js';
 import doctorCategoryRoutes from './routes/doctorCategoryRoutes.js';
 import tipRoutes from './routes/tipRoutes.js';
 import paymentRoutes from './routes/paymentRoutes.js';
-import razorpayRoutes from './routes/razorpayRoutes.js';
 import shippingRoutes from './routes/shippingRoutes.js';
 import addressRoutes from './routes/addressRoutes.js';
 import checkoutRoutes from './routes/checkoutRoutes.js';
@@ -129,7 +123,6 @@ app.use('/api/doctors', doctorRoutes);
 app.use('/api/doctor-categories', doctorCategoryRoutes);
 app.use('/api/tips', tipRoutes);
 app.use('/api/payment', paymentRoutes);
-app.use('/api/razorpay', razorpayRoutes);
 app.use('/api/shipping', shippingRoutes);
 app.use('/api/addresses', addressRoutes);
 app.use('/api/checkout', checkoutRoutes);
@@ -162,7 +155,7 @@ const startServer = async () => {
   try {
     await connectDB();
     initTrackingCron(); // Start automated tracking updates
-    console.log(`[VAMASHIP] Final Config - BaseURL: ${process.env.VAMASHIP_BASE_URL || 'Falling back to staging'}`);
+    console.log('[SHIPPING] Local courier shipping system initialized');
     app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
   } catch (error) {
     console.error(`Error: ${error.message}`);
