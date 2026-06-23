@@ -21,6 +21,21 @@ const storage = new CloudinaryStorage({
 
 const upload = multer({ storage });
 
+const videoStorage = new CloudinaryStorage({
+    cloudinary: cloudinary,
+    params: {
+        folder: 'hridved_uploads',
+        resource_type: 'video',
+        allowed_formats: ['mp4', 'mov', 'webm', 'mkv'],
+        public_id: (req, file) => {
+            const fileName = path.parse(file.originalname).name;
+            return `${fileName}-${Date.now()}`;
+        },
+    },
+});
+
+const uploadVideo = multer({ storage: videoStorage });
+
 router.get('/', (req, res) => {
     res.send('Upload route is working');
 });
@@ -41,6 +56,26 @@ router.post('/', (req, res, next) => {
         } else {
             console.error('Upload failed: No file received');
             res.status(400).send('No image uploaded');
+        }
+    });
+});
+
+router.post('/video', (req, res, next) => {
+    uploadVideo.single('video')(req, res, (err) => {
+        if (err instanceof multer.MulterError) {
+            console.error('Multer Error:', err);
+            return res.status(400).send(`Multer upload error: ${err.message}`);
+        } else if (err) {
+            console.error('Unknown Upload Error:', err);
+            return res.status(500).send(`Unknown upload error: ${err.message}`);
+        }
+
+        if (req.file) {
+            console.log('Video Upload success:', req.file.path);
+            res.send(req.file.path);
+        } else {
+            console.error('Video Upload failed: No file received');
+            res.status(400).send('No video uploaded');
         }
     });
 });
