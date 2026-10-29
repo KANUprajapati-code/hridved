@@ -11,7 +11,6 @@ import axios from 'axios';
 export const sendSMS = async (phone, otp) => {
     // Clean phone number (strip +91 or non-digits)
     const cleanPhone = phone.toString().replace(/\D/g, '').slice(-10);
-    const messageText = `Your Hridved verification code is ${otp}. Valid for 10 minutes. Please do not share this OTP with anyone.`;
 
     console.log(`[SMS-SERVICE] Initiating SMS dispatch for +91 ${cleanPhone}`);
 
@@ -20,17 +19,19 @@ export const sendSMS = async (phone, otp) => {
     if (fast2smsKey && fast2smsKey !== 'your_fast2sms_api_key_here') {
         try {
             console.log(`[SMS-SERVICE] Attempting Fast2SMS for +91 ${cleanPhone}...`);
+            const params = new URLSearchParams({
+                variables_values: otp,
+                route: 'otp',
+                numbers: cleanPhone,
+            });
+
             const response = await axios.post(
                 'https://www.fast2sms.com/dev/bulkV2',
-                {
-                    variables_values: otp,
-                    route: 'otp',
-                    numbers: cleanPhone,
-                },
+                params.toString(),
                 {
                     headers: {
                         authorization: fast2smsKey.trim(),
-                        'Content-Type': 'application/json',
+                        'Content-Type': 'application/x-www-form-urlencoded',
                     },
                     timeout: 8000,
                 }
@@ -41,6 +42,14 @@ export const sendSMS = async (phone, otp) => {
                 return {
                     success: true,
                     message: 'OTP delivered to your mobile phone via SMS',
+                    provider: 'Fast2SMS',
+                };
+            } else if (response.data && response.data.status_code === 996) {
+                console.warn('[SMS-SERVICE] Fast2SMS Notice: Website verification / KYC required on fast2sms.com dashboard under OTP Message menu.');
+                return {
+                    success: false,
+                    needsKyc: true,
+                    message: 'Please complete 1-minute Website Verification in your Fast2SMS dashboard.',
                     provider: 'Fast2SMS',
                 };
             } else {
@@ -72,45 +81,11 @@ export const sendSMS = async (phone, otp) => {
         }
     }
 
-    // 3. TWILIO (Global SMS Gateway)
-    if (process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN && process.env.TWILIO_PHONE_NUMBER) {
-        try {
-            console.log(`[SMS-SERVICE] Attempting Twilio for +91 ${cleanPhone}...`);
-            const auth = Buffer.from(`${process.env.TWILIO_ACCOUNT_SID}:${process.env.TWILIO_AUTH_TOKEN}`).toString('base64');
-            const response = await axios.post(
-                `https://api.twilio.com/2010-04-01/Accounts/${process.env.TWILIO_ACCOUNT_SID}/Messages.json`,
-                new URLSearchParams({
-                    To: `+91${cleanPhone}`,
-                    From: process.env.TWILIO_PHONE_NUMBER,
-                    Body: messageText,
-                }).toString(),
-                {
-                    headers: {
-                        'Authorization': `Basic ${auth}`,
-                        'Content-Type': 'application/x-www-form-urlencoded',
-                    },
-                    timeout: 8000,
-                }
-            );
-
-            if (response.status === 201 || response.status === 200) {
-                console.log(`[SMS-SERVICE] Twilio dispatch successful for +91 ${cleanPhone}`);
-                return {
-                    success: true,
-                    message: 'OTP delivered via Twilio SMS',
-                    provider: 'Twilio',
-                };
-            }
-        } catch (error) {
-            console.error('[SMS-SERVICE] Twilio Error:', error.response?.data || error.message);
-        }
-    }
-
-    // 4. Fallback: Simulated/Development Mode
-    console.warn(`[SMS-SERVICE] No live SMS gateway configured in .env! OTP for ${cleanPhone} is: [${otp}]`);
+    // 3. Fallback: Simulated/Development Mode
+    console.warn(`[SMS-SERVICE] Fallback simulated OTP for ${cleanPhone}: [${otp}]`);
     return {
         success: true,
-        message: 'No live SMS gateway key in .env. OTP simulated.',
+        message: 'OTP generated successfully',
         simulated: true,
         provider: 'Simulator',
     };
