@@ -269,12 +269,9 @@ const sendOtp = async (req, res) => {
 
         return res.status(200).json({
             success: true,
-            message: smsResult.simulated
-                ? `Demo mode: OTP is ${otpCode}. (Add FAST2SMS_API_KEY in backend .env to send real SMS)`
-                : `OTP sent successfully via SMS to +91 ${cleanPhone}`,
+            message: `OTP sent successfully to +91 ${cleanPhone}`,
             provider: smsResult.provider,
             simulated: smsResult.simulated,
-            devOtp: process.env.NODE_ENV !== 'production' || smsResult.simulated ? otpCode : undefined,
         });
     } catch (error) {
         console.error('sendOtp Error:', error);
