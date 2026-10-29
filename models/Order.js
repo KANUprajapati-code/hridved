@@ -56,7 +56,11 @@ const orderSchema = mongoose.Schema({
     razorpayPaymentId: { type: String },
     razorpaySignature: { type: String },
     // Shipping Integration Fields
-    shippingProvider: { type: String, enum: ['Vamaship'], default: 'Vamaship' },
+    shippingProvider: { 
+        type: String, 
+        enum: ['Vamaship', 'Local', 'Standard', 'Custom', 'Delhivery', 'Shiprocket', 'Other'], 
+        default: 'Vamaship' 
+    },
     waybill: { type: String }, // Fship waybill
     apiOrderId: { type: String }, // Fship order id
     pickupOrderId: { type: String }, // Fship pickup id

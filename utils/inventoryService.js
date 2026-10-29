@@ -1,3 +1,4 @@
+import mongoose from 'mongoose';
 import Product from '../models/Product.js';
 import NotificationLog from '../models/NotificationLog.js';
 
@@ -32,7 +33,15 @@ export const validateOrderStock = async (orderItems) => {
             return { valid: false, message: 'Invalid product identifier in cart item' };
         }
 
-        const product = await Product.findById(productId);
+        let product = null;
+        if (mongoose.Types.ObjectId.isValid(productId)) {
+            product = await Product.findById(productId);
+        }
+        if (!product && item.name) {
+            const cleanName = item.name.split('(')[0].trim();
+            product = await Product.findOne({ name: new RegExp(cleanName, 'i') });
+        }
+
         if (!product) {
             return { valid: false, message: `Product "${item.name || 'Unknown'}" is no longer available in the catalogue.` };
         }
@@ -71,6 +80,10 @@ export const deductOrderStock = async (orderItems) => {
 
     for (const item of orderItems) {
         const productId = item.product || item._id;
+        if (!productId || !mongoose.Types.ObjectId.isValid(productId)) {
+            continue;
+        }
+
         const unitsNeeded = calculateUnitsNeeded(item);
 
         const updateResult = await Product.findOneAndUpdate(
