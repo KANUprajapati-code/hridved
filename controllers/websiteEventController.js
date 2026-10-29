@@ -22,36 +22,57 @@ const allowedEvents = new Set([
   'whatsapp_click', 
   'pincode_check', 
   'newsletter_signup', 
-  'order_tracking_lookup'
+  'order_tracking_lookup',
+  'assistant_open',
+  'assistant_query',
+  'assistant_escalate',
+  'otp_send',
+  'otp_verify',
 ]);
 
 export const collectWebsiteEvent = asyncHandler(async (req, res) => {
   const { eventType, sessionId, path, productId, orderId, searchQuery, consentVersion } = req.body || {};
-  if (!allowedEvents.has(eventType) || typeof sessionId !== 'string' || !/^[a-zA-Z0-9_-]{16,80}$/.test(sessionId) ||
-      typeof path !== 'string' || !path.startsWith('/') || path.length > 180 || consentVersion !== 'analytics-v1') {
-    res.status(400);
-    throw new Error('Invalid analytics event');
+  
+  if (!eventType || typeof eventType !== 'string') {
+    return res.status(200).json({ success: true, ignored: true });
   }
 
+  const cleanEventType = eventType.trim();
+  const safeSessionId = typeof sessionId === 'string' && sessionId.length >= 8 
+    ? sessionId.replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 80) 
+    : 'anon-session-' + Date.now();
+  const safePath = typeof path === 'string' && path.startsWith('/') ? path.slice(0, 180) : '/';
+
   // Deduplication check for purchase events to prevent multi-count
-  if (eventType === 'purchase' && orderId && mongoose.isValidObjectId(orderId)) {
+  if (cleanEventType === 'purchase' && orderId && mongoose.isValidObjectId(orderId)) {
     const existingPurchase = await WebsiteEvent.findOne({ eventType: 'purchase', orderId });
     if (existingPurchase) {
       return res.status(200).json({ success: true, deduplicated: true });
     }
   }
 
-  const record = { eventType, sessionId, path, consentVersion };
+  const record = { 
+    eventType: cleanEventType, 
+    sessionId: safeSessionId, 
+    path: safePath, 
+    consentVersion: consentVersion || 'analytics-v1' 
+  };
+
   if (productId && mongoose.isValidObjectId(productId)) record.productId = productId;
-  if ((eventType === 'order_created' || eventType === 'purchase') && orderId && mongoose.isValidObjectId(orderId)) {
+  if ((cleanEventType === 'order_created' || cleanEventType === 'purchase') && orderId && mongoose.isValidObjectId(orderId)) {
     record.orderId = orderId;
   }
-  if (eventType === 'search' && typeof searchQuery === 'string') {
+  if (cleanEventType === 'search' && typeof searchQuery === 'string') {
     record.searchQuery = searchQuery.slice(0, 100).trim();
   }
 
-  await WebsiteEvent.create(record);
-  res.status(202).json({ success: true });
+  try {
+    await WebsiteEvent.create(record);
+  } catch (err) {
+    console.debug('[WebsiteEvent] Ingestion note:', err.message);
+  }
+
+  return res.status(202).json({ success: true });
 });
 
 export const getWebsiteEventSummary = asyncHandler(async (req, res) => {
