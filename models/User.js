@@ -8,12 +8,13 @@ const userSchema = mongoose.Schema({
     },
     email: {
         type: String,
-        required: true,
+        required: false,
         unique: true,
+        sparse: true,
     },
     password: {
         type: String,
-        default: '', // Optional for OAuth users
+        default: '', // Optional for OAuth & OTP users
     },
     isAdmin: {
         type: Boolean,
@@ -24,10 +25,10 @@ const userSchema = mongoose.Schema({
         type: String,
         default: '',
     },
-    // OAuth fields
+    // OAuth & Auth fields
     oauthProvider: {
         type: String,
-        enum: ['local', 'google', 'facebook'],
+        enum: ['local', 'google', 'facebook', 'phone_otp'],
         default: 'local',
     },
     oauthId: {
@@ -67,6 +68,7 @@ const userSchema = mongoose.Schema({
     phone: {
         type: String,
         default: '',
+        index: true,
     },
     wishlist: [{
         type: mongoose.Schema.Types.ObjectId,

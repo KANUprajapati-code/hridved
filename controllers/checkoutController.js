@@ -31,6 +31,13 @@ export const createCheckoutOrder = async (req, res) => {
             return res.status(400).json({ success: false, message: 'Invalid delivery option' });
         }
 
+        // Server-Side Inventory & Stock Validation (Prevent Overselling)
+        const { validateOrderStock, deductOrderStock } = await import('../utils/inventoryService.js');
+        const stockValidation = await validateOrderStock(orderItems);
+        if (!stockValidation.valid) {
+            return res.status(400).json({ success: false, message: stockValidation.message });
+        }
+
         // Get address details
         const Address = (await import('../models/Address.js')).default;
         const address = await Address.findById(addressId);
@@ -105,6 +112,21 @@ export const createCheckoutOrder = async (req, res) => {
             // 2. Generate local waybill instantly
             createdOrder.waybill = `HRD${Math.floor(10000000 + Math.random() * 90000000)}`;
             await createdOrder.save();
+
+            // 3. Atomically deduct stock for confirmed COD order
+            try {
+                await deductOrderStock(orderItems);
+            } catch (deductErr) {
+                console.error('[CHECKOUT] Stock deduction error for COD:', deductErr);
+            }
+
+            // 4. Trigger Order Confirmation Notification (verified COD state)
+            try {
+                const { sendOrderConfirmation } = await import('../utils/notificationService.js');
+                await sendOrderConfirmation(createdOrder._id);
+            } catch (notifyErr) {
+                console.warn('[CHECKOUT] Order confirmation notification warning:', notifyErr.message);
+            }
         }
 
         console.log(`[CHECKOUT] Order Created: ${createdOrder._id}`);

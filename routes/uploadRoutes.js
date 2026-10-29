@@ -1,58 +1,65 @@
-
 import path from 'path';
 import express from 'express';
 import multer from 'multer';
-import { CloudinaryStorage } from 'multer-storage-cloudinary';
-import cloudinary from '../config/cloudinary.js';
+import fs from 'fs';
 
 const router = express.Router();
 
-const storage = new CloudinaryStorage({
-    cloudinary: cloudinary,
-    params: {
-        folder: 'hridved_uploads',
-        allowed_formats: ['jpg', 'jpeg', 'png'],
-        public_id: (req, file) => {
-            const fileName = path.parse(file.originalname).name;
-            return `${fileName}-${Date.now()}`;
-        },
+// Ensure local uploads directory exists
+const uploadDir = 'uploads';
+if (!fs.existsSync(uploadDir)) {
+    fs.mkdirSync(uploadDir, { recursive: true });
+}
+
+// Multer disk storage for local storage without Cloudinary
+const storage = multer.diskStorage({
+    destination(req, file, cb) {
+        cb(null, uploadDir);
     },
+    filename(req, file, cb) {
+        const ext = path.extname(file.originalname);
+        const baseName = path.parse(file.originalname).name.replace(/[^a-zA-Z0-9_-]/g, '_');
+        cb(null, `${baseName}-${Date.now()}${ext}`);
+    }
 });
 
-const upload = multer({ storage });
+const fileFilter = (req, file, cb) => {
+    const allowedImageTypes = /jpg|jpeg|png|webp|svg|gif/;
+    const allowedVideoTypes = /mp4|mov|webm|mkv/;
+    const ext = path.extname(file.originalname).toLowerCase().replace('.', '');
+    
+    if (allowedImageTypes.test(ext) || allowedVideoTypes.test(ext)) {
+        cb(null, true);
+    } else {
+        cb(new Error(`File type .${ext} is not supported`));
+    }
+};
 
-const videoStorage = new CloudinaryStorage({
-    cloudinary: cloudinary,
-    params: {
-        folder: 'hridved_uploads',
-        resource_type: 'video',
-        allowed_formats: ['mp4', 'mov', 'webm', 'mkv'],
-        public_id: (req, file) => {
-            const fileName = path.parse(file.originalname).name;
-            return `${fileName}-${Date.now()}`;
-        },
-    },
+const upload = multer({
+    storage,
+    limits: { fileSize: 50 * 1024 * 1024 }, // 50MB
+    fileFilter
 });
-
-const uploadVideo = multer({ storage: videoStorage });
 
 router.get('/', (req, res) => {
-    res.send('Upload route is working');
+    res.send('Upload route is working (Local MongoDB/Uploads storage)');
 });
 
-router.post('/', (req, res, next) => {
+// Single image upload
+router.post('/', (req, res) => {
     upload.single('image')(req, res, (err) => {
         if (err instanceof multer.MulterError) {
             console.error('Multer Error:', err);
             return res.status(400).send(`Multer upload error: ${err.message}`);
         } else if (err) {
-            console.error('Unknown Upload Error:', err);
-            return res.status(500).send(`Unknown upload error: ${err.message}`);
+            console.error('Upload Error:', err);
+            return res.status(500).send(`Upload error: ${err.message}`);
         }
 
         if (req.file) {
-            console.log('Upload success:', req.file.path);
-            res.send(req.file.path);
+            const normalizedPath = `/${req.file.path.replace(/\\/g, '/')}`;
+            console.log('Upload success:', normalizedPath);
+            res.send(normalizedPath);
         } else {
             console.error('Upload failed: No file received');
             res.status(400).send('No image uploaded');
@@ -60,19 +67,21 @@ router.post('/', (req, res, next) => {
     });
 });
 
-router.post('/video', (req, res, next) => {
-    uploadVideo.single('video')(req, res, (err) => {
+// Video upload
+router.post('/video', (req, res) => {
+    upload.single('video')(req, res, (err) => {
         if (err instanceof multer.MulterError) {
             console.error('Multer Error:', err);
             return res.status(400).send(`Multer upload error: ${err.message}`);
         } else if (err) {
-            console.error('Unknown Upload Error:', err);
-            return res.status(500).send(`Unknown upload error: ${err.message}`);
+            console.error('Video Upload Error:', err);
+            return res.status(500).send(`Upload error: ${err.message}`);
         }
 
         if (req.file) {
-            console.log('Video Upload success:', req.file.path);
-            res.send(req.file.path);
+            const normalizedPath = `/${req.file.path.replace(/\\/g, '/')}`;
+            console.log('Video upload success:', normalizedPath);
+            res.send(normalizedPath);
         } else {
             console.error('Video Upload failed: No file received');
             res.status(400).send('No video uploaded');
@@ -80,9 +89,10 @@ router.post('/video', (req, res, next) => {
     });
 });
 
-router.post('/multiple', upload.array('images', 5), (req, res) => {
-    if (req.files) {
-        const filePaths = req.files.map(file => file.path);
+// Multiple image upload
+router.post('/multiple', upload.array('images', 8), (req, res) => {
+    if (req.files && req.files.length > 0) {
+        const filePaths = req.files.map(file => `/${file.path.replace(/\\/g, '/')}`);
         res.send(filePaths);
     } else {
         res.status(400).send('No images uploaded');

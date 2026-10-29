@@ -129,6 +129,14 @@ router.post('/verify', async (req, res) => {
             await order.save();
             console.log(`[ORDER] ${order._id} marked as PAID via Verification.`);
 
+            // Atomically deduct inventory stock for verified paid order
+            try {
+                const { deductOrderStock } = await import('../utils/inventoryService.js');
+                await deductOrderStock(order.orderItems);
+            } catch (deductErr) {
+                console.error(`[RAZORPAY] Stock deduction error for Order ${order._id}:`, deductErr.message);
+            }
+
             // 2. Trigger Shipment (ONLY if just updated to paid)
             try {
                 if (order.shippingProvider === 'Vamaship') {
@@ -142,6 +150,14 @@ router.post('/verify', async (req, res) => {
                 }
             } catch (shipmentError) {
                 console.error(`[RAZORPAY] Shipment Trigger Failed for Order ${order._id}:`, shipmentError.message);
+            }
+
+            // 3. Trigger Verified Order Confirmation Notification
+            try {
+                const { sendOrderConfirmation } = await import('../utils/notificationService.js');
+                await sendOrderConfirmation(order._id);
+            } catch (notifyErr) {
+                console.warn('[RAZORPAY] Order confirmation notification warning:', notifyErr.message);
             }
         } else {
             console.log(`[RAZORPAY] Order ${order._id} already marked as paid. Skipping update.`);
@@ -219,6 +235,22 @@ router.post('/webhook', async (req, res) => {
 
             await order.save();
             console.log(`[WEBHOOK] SUCCESS: Order ${order._id} successfully marked as PAID.`);
+
+            // Atomically deduct inventory stock
+            try {
+                const { deductOrderStock } = await import('../utils/inventoryService.js');
+                await deductOrderStock(order.orderItems);
+            } catch (deductErr) {
+                console.error(`[WEBHOOK] Stock deduction error for Order ${order._id}:`, deductErr.message);
+            }
+
+            // Send order confirmation notification
+            try {
+                const { sendOrderConfirmation } = await import('../utils/notificationService.js');
+                await sendOrderConfirmation(order._id);
+            } catch (notifyErr) {
+                console.warn(`[WEBHOOK] Order confirmation notification warning:`, notifyErr.message);
+            }
 
             // 3. (Optional) Trigger post-payment actions like Fship
             try {

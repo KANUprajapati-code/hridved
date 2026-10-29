@@ -31,6 +31,16 @@ const getProducts = async (req, res) => {
         if (req.query.maxPrice) keyword.price.$lte = Number(req.query.maxPrice);
     }
 
+    // In-Stock only filter
+    if (req.query.inStock === 'true') {
+        keyword.countInStock = { $gt: 0 };
+    }
+
+    // Rating filter (min rating)
+    if (req.query.rating) {
+        keyword.rating = { $gte: Number(req.query.rating) };
+    }
+
     if (isBestseller) {
         keyword.isBestseller = true;
     }
@@ -45,6 +55,10 @@ const getProducts = async (req, res) => {
         sort = { createdAt: -1 };
     } else if (req.query.sort === 'rating') {
         sort = { rating: -1 };
+    } else if (req.query.sort === 'featured') {
+        sort = { isFeatured: -1, isBestseller: -1, createdAt: -1 };
+    } else {
+        sort = { createdAt: -1 };
     }
 
     const count = await Product.countDocuments({ ...keyword });

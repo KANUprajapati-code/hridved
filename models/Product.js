@@ -14,6 +14,16 @@ const reviewSchema = mongoose.Schema({
     timestamps: true,
 });
 
+const variantSchema = mongoose.Schema({
+    id: { type: String, required: true },
+    name: { type: String, required: true },
+    sku: { type: String, required: true },
+    price: { type: Number, required: true },
+    mrp: { type: Number, required: true },
+    stock: { type: Number, default: 0 },
+    multiplier: { type: Number, default: 1 },
+});
+
 const productSchema = mongoose.Schema({
     user: {
         type: mongoose.Schema.Types.ObjectId,
@@ -23,6 +33,10 @@ const productSchema = mongoose.Schema({
     name: {
         type: String,
         required: true,
+    },
+    sku: {
+        type: String,
+        default: '',
     },
     image: {
         type: String,
@@ -92,6 +106,7 @@ const productSchema = mongoose.Schema({
         required: true,
         default: 0.5, // Default weight in kg
     },
+    variants: [variantSchema],
     reviews: [reviewSchema],
 }, {
     timestamps: true,

@@ -44,4 +44,22 @@ const admin = (req, res, next) => {
     }
 };
 
-export { protect, admin };
+const optionalAuth = async (req, res, next) => {
+    let token = req.cookies.jwt;
+    if (!token && req.headers.authorization && req.headers.authorization.startsWith('Bearer ')) {
+        token = req.headers.authorization.slice(7);
+    }
+
+    if (token) {
+        try {
+            const decoded = jwt.verify(token, process.env.JWT_SECRET);
+            req.user = await User.findById(decoded.userId).select('-password');
+        } catch (error) {
+            // Token is optional, ignore invalid token error
+            req.user = null;
+        }
+    }
+    next();
+};
+
+export { protect, admin, optionalAuth };

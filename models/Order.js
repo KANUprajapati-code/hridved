@@ -72,9 +72,12 @@ const orderSchema = mongoose.Schema({
     ],
     shippingStatus: {
         type: String,
-        enum: ['Pending', 'Processing', 'Shipped', 'Delivered', 'RTO', 'Shipping Pending'],
+        enum: ['Pending', 'Processing', 'Shipped', 'Delivered', 'RTO', 'Shipping Pending', 'Cancelled'],
         default: 'Pending'
     },
+    isCancelled: { type: Boolean, default: false },
+    cancelledAt: { type: Date },
+    cancellationReason: { type: String },
     isReverse: { type: Boolean, default: false },
     shipmentId: { type: String }, // Legacy/Generic
     trackingId: { type: String }, // Generic tracker
