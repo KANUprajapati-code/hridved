@@ -1,65 +1,67 @@
 import path from 'path';
 import express from 'express';
 import multer from 'multer';
-import fs from 'fs';
+import { CloudinaryStorage } from 'multer-storage-cloudinary';
+import cloudinary from '../config/cloudinary.js';
 
 const router = express.Router();
 
-// Ensure local uploads directory exists
-const uploadDir = 'uploads';
-if (!fs.existsSync(uploadDir)) {
-    fs.mkdirSync(uploadDir, { recursive: true });
-}
-
-// Multer disk storage for local storage without Cloudinary
-const storage = multer.diskStorage({
-    destination(req, file, cb) {
-        cb(null, uploadDir);
+// Cloudinary Storage for Images
+const imageStorage = new CloudinaryStorage({
+    cloudinary: cloudinary,
+    params: {
+        folder: 'hridved_uploads',
+        allowed_formats: ['jpg', 'jpeg', 'png', 'webp', 'svg', 'gif'],
+        public_id: (req, file) => {
+            const fileName = path.parse(file.originalname).name.replace(/[^a-zA-Z0-9_-]/g, '_');
+            return `${fileName}-${Date.now()}`;
+        },
     },
-    filename(req, file, cb) {
-        const ext = path.extname(file.originalname);
-        const baseName = path.parse(file.originalname).name.replace(/[^a-zA-Z0-9_-]/g, '_');
-        cb(null, `${baseName}-${Date.now()}${ext}`);
-    }
 });
 
-const fileFilter = (req, file, cb) => {
-    const allowedImageTypes = /jpg|jpeg|png|webp|svg|gif/;
-    const allowedVideoTypes = /mp4|mov|webm|mkv/;
-    const ext = path.extname(file.originalname).toLowerCase().replace('.', '');
-    
-    if (allowedImageTypes.test(ext) || allowedVideoTypes.test(ext)) {
-        cb(null, true);
-    } else {
-        cb(new Error(`File type .${ext} is not supported`));
-    }
-};
+// Cloudinary Storage for Videos
+const videoStorage = new CloudinaryStorage({
+    cloudinary: cloudinary,
+    params: {
+        folder: 'hridved_uploads',
+        resource_type: 'video',
+        allowed_formats: ['mp4', 'mov', 'webm', 'mkv', 'avi'],
+        public_id: (req, file) => {
+            const fileName = path.parse(file.originalname).name.replace(/[^a-zA-Z0-9_-]/g, '_');
+            return `${fileName}-${Date.now()}`;
+        },
+    },
+});
 
-const upload = multer({
-    storage,
-    limits: { fileSize: 50 * 1024 * 1024 }, // 50MB
-    fileFilter
+const uploadImage = multer({
+    storage: imageStorage,
+    limits: { fileSize: 25 * 1024 * 1024 } // 25MB
+});
+
+const uploadVideo = multer({
+    storage: videoStorage,
+    limits: { fileSize: 100 * 1024 * 1024 } // 100MB
 });
 
 router.get('/', (req, res) => {
-    res.send('Upload route is working (Local MongoDB/Uploads storage)');
+    res.send('Upload route is working (Cloudinary storage)');
 });
 
 // Single image upload
 router.post('/', (req, res) => {
-    upload.single('image')(req, res, (err) => {
+    uploadImage.single('image')(req, res, (err) => {
         if (err instanceof multer.MulterError) {
-            console.error('Multer Error:', err);
+            console.error('Multer Image Error:', err);
             return res.status(400).send(`Multer upload error: ${err.message}`);
         } else if (err) {
-            console.error('Upload Error:', err);
+            console.error('Image Upload Error:', err);
             return res.status(500).send(`Upload error: ${err.message}`);
         }
 
         if (req.file) {
-            const normalizedPath = `/${req.file.path.replace(/\\/g, '/')}`;
-            console.log('Upload success:', normalizedPath);
-            res.send(normalizedPath);
+            const fileUrl = req.file.path || req.file.secure_url || req.file.url;
+            console.log('Image upload success:', fileUrl);
+            res.send(fileUrl);
         } else {
             console.error('Upload failed: No file received');
             res.status(400).send('No image uploaded');
@@ -69,19 +71,19 @@ router.post('/', (req, res) => {
 
 // Video upload
 router.post('/video', (req, res) => {
-    upload.single('video')(req, res, (err) => {
+    uploadVideo.single('video')(req, res, (err) => {
         if (err instanceof multer.MulterError) {
-            console.error('Multer Error:', err);
-            return res.status(400).send(`Multer upload error: ${err.message}`);
+            console.error('Multer Video Error:', err);
+            return res.status(400).send(`Multer video error: ${err.message}`);
         } else if (err) {
             console.error('Video Upload Error:', err);
             return res.status(500).send(`Upload error: ${err.message}`);
         }
 
         if (req.file) {
-            const normalizedPath = `/${req.file.path.replace(/\\/g, '/')}`;
-            console.log('Video upload success:', normalizedPath);
-            res.send(normalizedPath);
+            const fileUrl = req.file.path || req.file.secure_url || req.file.url;
+            console.log('Video upload success:', fileUrl);
+            res.send(fileUrl);
         } else {
             console.error('Video Upload failed: No file received');
             res.status(400).send('No video uploaded');
@@ -89,14 +91,25 @@ router.post('/video', (req, res) => {
     });
 });
 
-// Multiple image upload
-router.post('/multiple', upload.array('images', 8), (req, res) => {
-    if (req.files && req.files.length > 0) {
-        const filePaths = req.files.map(file => `/${file.path.replace(/\\/g, '/')}`);
-        res.send(filePaths);
-    } else {
-        res.status(400).send('No images uploaded');
-    }
+// Multiple images upload
+router.post('/multiple', (req, res) => {
+    uploadImage.array('images', 8)(req, res, (err) => {
+        if (err instanceof multer.MulterError) {
+            console.error('Multer Multiple Error:', err);
+            return res.status(400).send(`Multer upload error: ${err.message}`);
+        } else if (err) {
+            console.error('Multiple Upload Error:', err);
+            return res.status(500).send(`Upload error: ${err.message}`);
+        }
+
+        if (req.files && req.files.length > 0) {
+            const filePaths = req.files.map(file => file.path || file.secure_url || file.url);
+            console.log('Multiple upload success:', filePaths);
+            res.send(filePaths);
+        } else {
+            res.status(400).send('No images uploaded');
+        }
+    });
 });
 
 export default router;
