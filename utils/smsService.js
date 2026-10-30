@@ -64,6 +64,9 @@ export const sendSMS = async (phone, otp) => {
 
     console.log(`[SMS-SERVICE] Initiating SMS dispatch for +91 ${cleanPhone}`);
 
+    let lastError = '';
+    let lastStatusCode = null;
+
     // 1. FAST2SMS (India's most popular OTP gateway)
     const fast2smsKey = process.env.FAST2SMS_API_KEY;
     if (fast2smsKey && fast2smsKey !== 'your_fast2sms_api_key_here') {
@@ -101,6 +104,8 @@ export const sendSMS = async (phone, otp) => {
                     };
                 }
             } catch (otpErr) {
+                lastError = otpErr.response?.data?.message || otpErr.message;
+                lastStatusCode = otpErr.response?.data?.status_code || otpErr.response?.status;
                 console.warn('[SMS-SERVICE] Dedicated OTP failed, falling back to Quick/OTP route:', otpErr.response?.data || otpErr.message);
             }
         }
@@ -137,6 +142,8 @@ export const sendSMS = async (phone, otp) => {
             }
 
             const statusCode = response.data?.status_code;
+            lastStatusCode = statusCode;
+            lastError = response.data?.message || lastError;
             if (statusCode === 413) {
                 console.warn('[SMS-SERVICE] Fast2SMS Error 413: Authorization Key Disabled in your Fast2SMS account console.');
             } else if (statusCode === 416) {
@@ -146,7 +153,9 @@ export const sendSMS = async (phone, otp) => {
             }
         } catch (error) {
             const errData = error.response?.data;
-            const statusCode = errData?.status_code;
+            const statusCode = errData?.status_code || error.response?.status;
+            lastStatusCode = statusCode;
+            lastError = errData?.message || error.message;
             console.error(`[SMS-SERVICE] Fast2SMS Quick SMS Error (HTTP ${error.response?.status || 'ERR'}, Code: ${statusCode}):`, errData || error.message);
             
             // Check if key is explicitly disabled or unauthorized
@@ -184,7 +193,13 @@ export const sendSMS = async (phone, otp) => {
                     provider: 'Fast2SMS (OTP Route)',
                 };
             }
+            if (response.data?.status_code) {
+                lastStatusCode = response.data.status_code;
+                lastError = response.data.message || lastError;
+            }
         } catch (error) {
+            lastStatusCode = error.response?.data?.status_code || lastStatusCode;
+            lastError = error.response?.data?.message || lastError;
             console.warn('[SMS-SERVICE] Fast2SMS OTP Route Error:', error.response?.data || error.message);
         }
     }
@@ -210,13 +225,14 @@ export const sendSMS = async (phone, otp) => {
         }
     }
 
-    // 3. Fallback: Simulated/Development Mode
-    console.warn(`[SMS-SERVICE] Fallback simulated OTP for ${cleanPhone}: [${otp}]`);
+    // 3. Fallback: Return actual error
+    console.warn(`[SMS-SERVICE] SMS Gateway did not deliver to ${cleanPhone}. Reason: ${lastError || 'Gateway unavailable'}`);
     return {
         success: false,
         simulated: true,
-        message: 'SMS gateway unavailable; simulated OTP generated for local testing',
-        provider: 'Simulator',
+        statusCode: lastStatusCode,
+        message: lastError || 'SMS gateway unavailable',
+        provider: 'Fast2SMS',
     };
 };
 

@@ -278,22 +278,14 @@ const sendOtp = async (req, res) => {
             });
         }
 
-        // If SMS service was simulated or unavailable:
-        if (isDev || smsResult.simulated) {
-            return res.status(200).json({
-                success: true,
-                simulated: true,
-                devOtp: otpCode,
-                message: smsResult.message || `OTP generated for +91 ${cleanPhone}`,
-                provider: smsResult.provider,
-                warning: 'Fast2SMS API key disabled or unavailable; using test mode code.',
-            });
-        }
-
-        // In strict production if SMS failed completely:
+        // Real SMS failed to dispatch from SMS gateway:
         return res.status(502).json({
             success: false,
-            message: smsResult.message || 'SMS service is temporarily unavailable. Please try again.',
+            statusCode: smsResult.statusCode,
+            message: smsResult.statusCode === 413
+                ? 'Fast2SMS Error 413: Authorization Key is Disabled in your Fast2SMS account console. Please enable it under Dev API on fast2sms.com.'
+                : (smsResult.message || 'SMS delivery failed. Please check Fast2SMS settings.'),
+            provider: smsResult.provider,
         });
     } catch (error) {
         console.error('sendOtp Error:', error);
