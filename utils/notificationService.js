@@ -88,7 +88,8 @@ export const sendOrderConfirmation = async (orderId) => {
             return { success: true, deduplicated: true };
         }
 
-        const messageText = `Namaste ${order.shippingAddress?.fullName || 'Customer'}! 🙏 Your Hridved order #${String(order._id).slice(-8).toUpperCase()} has been confirmed. Total: ₹${order.totalPrice}. Formulated with classical care. Delivery in 3-5 days.`;
+        const ORDER_DESK_PHONE = '+91 79909 34095';
+        const messageText = `Namaste ${order.shippingAddress?.fullName || 'Customer'}! 🙏 Your Hridved order #${String(order._id).slice(-8).toUpperCase()} has been confirmed. Total: ₹${order.totalPrice}. Formulated with classical care. Delivery in 3-5 days. For order updates, WhatsApp Order Desk: ${ORDER_DESK_PHONE}.`;
 
         const providers = getProvidersConfig();
 
@@ -163,9 +164,10 @@ export const sendShippingNotification = async (orderId, newStatus) => {
         }
 
         const trackingInfo = order.waybill ? ` Waybill: ${order.waybill} (${order.shippingProvider || 'Courier'}).` : '';
+        const ORDER_DESK_PHONE = '+91 79909 34095';
         const messageText = newStatus === 'Shipped'
-            ? `Namaste! 🌿 Your Hridved parcel for order #${String(order._id).slice(-8).toUpperCase()} has been dispatched.${trackingInfo} Track at: https://hridved.in/track-order`
-            : `Namaste! 🌿 Your Hridved order #${String(order._id).slice(-8).toUpperCase()} has been successfully delivered. May these pure formulations bring you vitality and balance.`;
+            ? `Namaste! 🌿 Your Hridved parcel for order #${String(order._id).slice(-8).toUpperCase()} has been dispatched.${trackingInfo} Order Desk: ${ORDER_DESK_PHONE}. Track at: https://hridved.in/track-order`
+            : `Namaste! 🌿 Your Hridved order #${String(order._id).slice(-8).toUpperCase()} has been successfully delivered. Order Desk: ${ORDER_DESK_PHONE}. May these pure formulations bring you vitality and balance.`;
 
         const providers = getProvidersConfig();
 

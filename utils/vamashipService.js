@@ -41,7 +41,7 @@ export const getVamashipRates = async (rateData) => {
   const payload = {
     seller: {
       name: process.env.SELLER_NAME || 'Hridved Ayurveda',
-      phone: process.env.SELLER_PHONE || '8980411390',
+      phone: process.env.SELLER_PHONE || '7990934095',
       email: process.env.SELLER_EMAIL || 'hridved@gmail.com',
       address: process.env.SELLER_ADDRESS || 'Plot No. 123, Modasa Road',
       city: process.env.SELLER_CITY || 'Dhansura',
@@ -195,7 +195,7 @@ export const processVamashipShipment = async (orderId) => {
     const payload = {
       seller: {
         name: process.env.SELLER_NAME || 'Hridved Ayurveda',
-        phone: process.env.SELLER_PHONE || '8980411390',
+        phone: process.env.SELLER_PHONE || '7990934095',
         email: process.env.SELLER_EMAIL || 'hridved@gmail.com',
         address: process.env.SELLER_ADDRESS || 'Plot No. 123, Modasa Road',
         city: process.env.SELLER_CITY || 'Dhansura',
@@ -358,7 +358,7 @@ export const processVamashipReverseShipment = async (forwardWaybill) => {
     const payload = {
       seller: {
         name: process.env.SELLER_NAME || 'Hridved Ayurveda',
-        phone: process.env.SELLER_PHONE || '8980411390',
+        phone: process.env.SELLER_PHONE || '7990934095',
         email: process.env.SELLER_EMAIL || 'hridved@gmail.com',
         address: process.env.SELLER_ADDRESS || 'Plot No. 123, Modasa Road',
         city: process.env.SELLER_CITY || 'Dhansura',
