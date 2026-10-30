@@ -3,6 +3,7 @@ import AudienceLead from '../models/AudienceLead.js';
 import NotificationLog from '../models/NotificationLog.js';
 import OptOut from '../models/OptOut.js';
 import axios from 'axios';
+import { sendTransactionalSMS } from './smsService.js';
 
 /**
  * Mask Phone Number for PII-safe logging (e.g. +91 ******1234)
@@ -114,10 +115,9 @@ export const sendOrderConfirmation = async (orderId) => {
             return { success: true, simulated: true, mode: 'demo_simulation' };
         }
 
-        // 4. Live Provider Dispatch (if configured)
-        // Here we dispatch via Fast2SMS / Twilio safely
-        let dispatchResult = { success: true, provider: providers.sms.provider };
-        // Safe dispatch logic...
+        // 4. Live Provider Dispatch directly to customer's mobile number
+        const dispatchResult = await sendTransactionalSMS(phone, messageText);
+        console.log(`[ORDER NOTIFICATION] Dispatched confirmation SMS to customer (+91 ${maskedPhone}):`, dispatchResult);
 
         await NotificationLog.create({
             notificationType: 'order_confirmation',
@@ -126,15 +126,15 @@ export const sendOrderConfirmation = async (orderId) => {
             recipientEmailMasked: maskedEmail,
             order: order._id,
             user: order.user?._id || null,
-            status: 'delivered',
-            provider: providers.sms.provider,
+            status: dispatchResult.success ? 'delivered' : 'failed',
+            provider: dispatchResult.provider || providers.sms.provider,
             triggerReason: 'Order verified and dispatched to live gateway',
             dedupKey,
             messageSnippet: messageText.slice(0, 200),
             deliveryResponse: dispatchResult
         });
 
-        return { success: true, delivered: true };
+        return { success: dispatchResult.success, dispatchResult };
     } catch (error) {
         console.error('[NOTIFICATIONS] Error sending order confirmation:', error.message);
         return { success: false, error: error.message };
@@ -190,7 +190,10 @@ export const sendShippingNotification = async (orderId, newStatus) => {
             return { success: true, simulated: true };
         }
 
-        // Live Provider Dispatch ...
+        // Live Provider Dispatch directly to customer's mobile number
+        const dispatchResult = await sendTransactionalSMS(phone, messageText);
+        console.log(`[SHIPPING NOTIFICATION] Dispatched ${newStatus} SMS to customer (+91 ${maskedPhone}):`, dispatchResult);
+
         await NotificationLog.create({
             notificationType: newStatus === 'Shipped' ? 'shipping_update' : 'delivery_confirmation',
             channel: 'sms',
@@ -198,14 +201,15 @@ export const sendShippingNotification = async (orderId, newStatus) => {
             recipientEmailMasked: maskEmail(order.email),
             order: order._id,
             user: order.user?._id || null,
-            status: 'delivered',
-            provider: providers.sms.provider,
+            status: dispatchResult.success ? 'delivered' : 'failed',
+            provider: dispatchResult.provider || providers.sms.provider,
             triggerReason: `Real order status updated to ${newStatus}`,
             dedupKey,
-            messageSnippet: messageText.slice(0, 200)
+            messageSnippet: messageText.slice(0, 200),
+            deliveryResponse: dispatchResult
         });
 
-        return { success: true, delivered: true };
+        return { success: dispatchResult.success, dispatchResult };
     } catch (error) {
         console.error('[NOTIFICATIONS] Shipping notification error:', error.message);
         return { success: false, error: error.message };
