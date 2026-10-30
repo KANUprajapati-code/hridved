@@ -2,6 +2,7 @@ import mongoose from 'mongoose';
 import Order from '../models/Order.js';
 import Cart from '../models/Cart.js';
 import User from '../models/User.js';
+import SystemConfig from '../models/SystemConfig.js';
 
 // @desc    Create order from checkout (saves address and shipping method)
 // @route   POST /api/checkout/create-order
@@ -136,7 +137,18 @@ export const createCheckoutOrder = async (req, res) => {
         });
         calculatedTaxPrice = Math.round(calculatedTaxPrice * 100) / 100;
 
-        const codPrice = paymentMethod === 'COD' ? 50 : 0;
+        let codPrice = 0;
+        if (paymentMethod === 'COD') {
+            try {
+                const config = await SystemConfig.findOne();
+                if (config?.shipping?.isCodFeeEnabled) {
+                    codPrice = Math.max(0, Number(config.shipping.codFee) || 0);
+                }
+            } catch (err) {
+                console.warn('[CHECKOUT] SystemConfig lookup failed for COD fee:', err.message);
+                codPrice = 0;
+            }
+        }
         const finalDeliveryOption = (deliveryOption && typeof deliveryOption === 'string' && deliveryOption.trim() !== '') ? deliveryOption.trim() : 'Standard';
         const ALLOWED_PROVIDERS = ['Vamaship', 'Local', 'Local Courier', 'Standard', 'Custom', 'Delhivery', 'Shiprocket', 'Other'];
         const finalShippingProvider = (shippingProvider && ALLOWED_PROVIDERS.includes(shippingProvider)) ? shippingProvider : 'Local Courier';

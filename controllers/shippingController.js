@@ -12,14 +12,34 @@ export const checkServiceability = async (req, res) => {
         }
 
         const orderValue = Number(value) || 0;
-        const shippingCharge = orderValue >= 999 ? 0 : 50;
+
+        // Dynamic shipping rates from SystemConfig (Admin controllable)
+        let shippingCharge = 0;
+        try {
+            const config = await SystemConfig.findOne();
+            const shipping = config?.shipping || {};
+            const isFree = shipping.isFreeShipping !== undefined ? Boolean(shipping.isFreeShipping) : true;
+            const fee = Number(shipping.shippingFee) || 0;
+            const threshold = Number(shipping.freeShippingThreshold) || 0;
+
+            if (isFree || fee === 0) {
+                shippingCharge = 0;
+            } else if (threshold > 0 && orderValue >= threshold) {
+                shippingCharge = 0;
+            } else {
+                shippingCharge = fee;
+            }
+        } catch (cfgErr) {
+            console.warn('[SHIPPING] Failed to read SystemConfig, defaulting to Free:', cfgErr.message);
+            shippingCharge = 0;
+        }
 
         const shippingOptions = [
             {
                 type: 'Standard',
                 days: '3-5',
                 charge: shippingCharge,
-                description: 'Standard Delivery (3-5 days)',
+                description: shippingCharge === 0 ? 'Standard Delivery (Free Delivery)' : `Standard Delivery (₹${shippingCharge})`,
                 provider: 'Local Courier'
             }
         ];

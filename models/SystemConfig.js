@@ -6,6 +6,30 @@ const systemConfigSchema = mongoose.Schema({
             type: Boolean,
             default: true,
         },
+        fshipEnabled: {
+            type: Boolean,
+            default: true,
+        },
+        isFreeShipping: {
+            type: Boolean,
+            default: true,
+        },
+        shippingFee: {
+            type: Number,
+            default: 0,
+        },
+        freeShippingThreshold: {
+            type: Number,
+            default: 0,
+        },
+        codFee: {
+            type: Number,
+            default: 0,
+        },
+        isCodFeeEnabled: {
+            type: Boolean,
+            default: false,
+        }
     }
 }, {
     timestamps: true,
