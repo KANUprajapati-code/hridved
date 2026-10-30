@@ -138,7 +138,8 @@ export const createCheckoutOrder = async (req, res) => {
 
         const codPrice = paymentMethod === 'COD' ? 50 : 0;
         const finalDeliveryOption = (deliveryOption && typeof deliveryOption === 'string' && deliveryOption.trim() !== '') ? deliveryOption.trim() : 'Standard';
-        const finalShippingProvider = (shippingProvider && typeof shippingProvider === 'string') ? shippingProvider : 'Vamaship';
+        const ALLOWED_PROVIDERS = ['Vamaship', 'Local', 'Local Courier', 'Standard', 'Custom', 'Delhivery', 'Shiprocket', 'Other'];
+        const finalShippingProvider = (shippingProvider && ALLOWED_PROVIDERS.includes(shippingProvider)) ? shippingProvider : 'Local Courier';
         const finalItemsPrice = Number(itemsPrice) || cleanOrderItems.reduce((acc, it) => acc + (it.price * it.qty), 0);
         const finalShippingPrice = Number(shippingPrice) || 0;
         const finalDiscount = Number(discountAmount) || 0;

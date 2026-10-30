@@ -58,8 +58,8 @@ const orderSchema = mongoose.Schema({
     // Shipping Integration Fields
     shippingProvider: { 
         type: String, 
-        enum: ['Vamaship', 'Local', 'Standard', 'Custom', 'Delhivery', 'Shiprocket', 'Other'], 
-        default: 'Vamaship' 
+        enum: ['Vamaship', 'Local', 'Local Courier', 'Standard', 'Custom', 'Delhivery', 'Shiprocket', 'Other'], 
+        default: 'Local Courier' 
     },
     waybill: { type: String }, // Fship waybill
     apiOrderId: { type: String }, // Fship order id
