@@ -10,8 +10,8 @@ const router = express.Router();
 
 // Helper to get Razorpay instance with fresh env vars
 const getRazorpayInstance = () => {
-    const key_id = process.env.RAZORPAY_KEY_ID;
-    const key_secret = process.env.RAZORPAY_KEY_SECRET;
+    const key_id = process.env.RAZORPAY_KEY_ID ? process.env.RAZORPAY_KEY_ID.trim() : null;
+    const key_secret = process.env.RAZORPAY_KEY_SECRET ? process.env.RAZORPAY_KEY_SECRET.trim() : null;
 
     // Securely log key presence and format for debugging 401 errors
     if (key_id) {
@@ -53,10 +53,15 @@ router.post('/order', async (req, res) => {
             });
         }
 
+        const amountInPaise = Math.round(Number(amount) * 100);
+        if (!amountInPaise || amountInPaise <= 0) {
+            return res.status(400).json({ success: false, message: 'Invalid order amount' });
+        }
+
         const options = {
-            amount: Math.round(amount * 100), // Ensure it's an integer
-            currency,
-            receipt,
+            amount: amountInPaise, // In paise
+            currency: currency || 'INR',
+            receipt: receipt || `rcpt_${Date.now()}`,
         };
 
         const order = await razorpay.orders.create(options);
@@ -126,6 +131,10 @@ router.post('/verify', async (req, res) => {
             order.razorpayOrderId = razorpay_order_id;
             order.razorpayPaymentId = razorpay_payment_id;
             order.razorpaySignature = razorpay_signature;
+            // Generate Waybill for prepaid tracking
+            if (!order.waybill) {
+                order.waybill = `HRD${Math.floor(10000000 + Math.random() * 90000000)}`;
+            }
             await order.save();
             console.log(`[ORDER] ${order._id} marked as PAID via Verification.`);
 
@@ -143,10 +152,6 @@ router.post('/verify', async (req, res) => {
                     const { processVamashipShipment } = await import('../utils/vamashipService.js');
                     await processVamashipShipment(order._id);
                     console.log(`[RAZORPAY] Vamaship shipment initiated for Order ${order._id}`);
-                } else {
-                    const { processFshipShipment } = await import('../utils/fshipService.js');
-                    await processFshipShipment(order._id);
-                    console.log(`[RAZORPAY] Fship shipment initiated for Order ${order._id}`);
                 }
             } catch (shipmentError) {
                 console.error(`[RAZORPAY] Shipment Trigger Failed for Order ${order._id}:`, shipmentError.message);
@@ -233,6 +238,9 @@ router.post('/webhook', async (req, res) => {
             order.razorpayPaymentId = rzp_payment_id;
             order.razorpaySignature = 'WEBHOOK_VERIFIED';
 
+            if (!order.waybill) {
+                order.waybill = `HRD${Math.floor(10000000 + Math.random() * 90000000)}`;
+            }
             await order.save();
             console.log(`[WEBHOOK] SUCCESS: Order ${order._id} successfully marked as PAID.`);
 
@@ -252,16 +260,12 @@ router.post('/webhook', async (req, res) => {
                 console.warn(`[WEBHOOK] Order confirmation notification warning:`, notifyErr.message);
             }
 
-            // 3. (Optional) Trigger post-payment actions like Fship
+            // 3. Trigger shipment
             try {
                 if (order.shippingProvider === 'Vamaship') {
                     const { processVamashipShipment } = await import('../utils/vamashipService.js');
                     await processVamashipShipment(order._id);
                     console.log(`[WEBHOOK] Vamaship shipment initiated for Order ${order._id}`);
-                } else {
-                    const { processFshipShipment } = await import('../utils/fshipService.js');
-                    await processFshipShipment(order._id);
-                    console.log(`[WEBHOOK] Fship shipment initiated for Order ${order._id}`);
                 }
             } catch (shipmentErr) {
                 console.warn(`[WEBHOOK] Shipment trigger non-fatal error: ${shipmentErr.message}`);
@@ -287,10 +291,11 @@ router.post('/webhook', async (req, res) => {
 // @desc    Get Razorpay Key ID
 // @route   GET /api/razorpay/key
 router.get('/key', (req, res) => {
-    if (!process.env.RAZORPAY_KEY_ID) {
-        return res.status(500).json({ success: false, message: 'Razorpay key not configured' });
+    const key = process.env.RAZORPAY_KEY_ID ? process.env.RAZORPAY_KEY_ID.trim() : '';
+    if (!key || key === 'your_key_id') {
+        return res.json({ success: false, key: null, message: 'Razorpay key pending in backend .env' });
     }
-    res.json({ success: true, key: process.env.RAZORPAY_KEY_ID });
+    res.json({ success: true, key });
 });
 
 export default router;

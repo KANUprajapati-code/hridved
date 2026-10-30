@@ -38,7 +38,10 @@ app.set('trust proxy', 1);
 
 // Middleware
 app.use(express.json({
-  limit: '10mb'
+  limit: '10mb',
+  verify: (req, res, buf) => {
+    req.rawBody = buf;
+  }
 }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(cookieParser());
@@ -110,6 +113,7 @@ import configRoutes from './routes/configRoutes.js';
 import leadRoutes from './routes/leadRoutes.js';
 import websiteEventRoutes from './routes/websiteEventRoutes.js';
 import notificationRoutes from './routes/notificationRoutes.js';
+import razorpayRoutes from './routes/razorpayRoutes.js';
 import { notFound, errorHandler } from './middleware/errorMiddleware.js';
 
 app.use('/api/users', userRoutes);
@@ -126,6 +130,7 @@ app.use('/api/doctors', doctorRoutes);
 app.use('/api/doctor-categories', doctorCategoryRoutes);
 app.use('/api/tips', tipRoutes);
 app.use('/api/payment', paymentRoutes);
+app.use('/api/razorpay', razorpayRoutes);
 app.use('/api/shipping', shippingRoutes);
 app.use('/api/addresses', addressRoutes);
 app.use('/api/checkout', checkoutRoutes);
