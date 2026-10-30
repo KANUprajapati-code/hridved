@@ -267,11 +267,33 @@ const sendOtp = async (req, res) => {
             console.error('Lead tracking error in sendOtp:', leadErr.message);
         }
 
-        return res.status(200).json({
-            success: true,
-            message: `OTP sent successfully to +91 ${cleanPhone}`,
-            provider: smsResult.provider,
-            simulated: smsResult.simulated,
+        const isDev = process.env.NODE_ENV !== 'production';
+
+        if (smsResult.success) {
+            return res.status(200).json({
+                success: true,
+                message: `OTP sent successfully to +91 ${cleanPhone}`,
+                provider: smsResult.provider,
+                requestId: smsResult.requestId,
+            });
+        }
+
+        // If SMS service was simulated or unavailable:
+        if (isDev || smsResult.simulated) {
+            return res.status(200).json({
+                success: true,
+                simulated: true,
+                devOtp: otpCode,
+                message: smsResult.message || `OTP generated for +91 ${cleanPhone}`,
+                provider: smsResult.provider,
+                warning: 'Fast2SMS API key disabled or unavailable; using test mode code.',
+            });
+        }
+
+        // In strict production if SMS failed completely:
+        return res.status(502).json({
+            success: false,
+            message: smsResult.message || 'SMS service is temporarily unavailable. Please try again.',
         });
     } catch (error) {
         console.error('sendOtp Error:', error);

@@ -10,6 +10,7 @@ dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 5000;
+// Updated with Fast2SMS integration
 
 // Security Middleware
 app.use(helmet());
