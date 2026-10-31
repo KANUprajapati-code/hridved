@@ -279,11 +279,11 @@ const sendOtp = async (req, res) => {
         }
 
         // Real SMS failed to dispatch from SMS gateway:
-        return res.status(502).json({
+        return res.status(400).json({
             success: false,
             statusCode: smsResult.statusCode,
             message: smsResult.statusCode === 413
-                ? 'Fast2SMS Error 413: Authorization Key is Disabled in your Fast2SMS account console. Please enable it under Dev API on fast2sms.com.'
+                ? 'Fast2SMS Error 413: Authorization Key is Disabled in your Fast2SMS account console. Please complete KYC and enable it under Dev API on fast2sms.com.'
                 : (smsResult.message || 'SMS delivery failed. Please check Fast2SMS settings.'),
             provider: smsResult.provider,
         });
