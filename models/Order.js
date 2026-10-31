@@ -58,20 +58,27 @@ const orderSchema = mongoose.Schema({
     // Shipping Integration Fields
     shippingProvider: { 
         type: String, 
-        enum: ['Vamaship', 'Local', 'Local Courier', 'Standard', 'Custom', 'Delhivery', 'Shiprocket', 'Other'], 
-        default: 'Local Courier' 
+        enum: ['Wayuvega', 'Vamaship', 'Local', 'Local Courier', 'Standard', 'Custom', 'Delhivery', 'Shiprocket', 'Other'], 
+        default: 'Wayuvega' 
     },
-    waybill: { type: String }, // Fship waybill
-    apiOrderId: { type: String }, // Fship order id
-    pickupOrderId: { type: String }, // Fship pickup id
+    waybill: { type: String }, // AWB / Waybill
+    apiOrderId: { type: String }, // Carrier order id
+    pickupOrderId: { type: String }, // Pickup id
     shippingLabelUrl: { type: String },
     trackingStatus: { type: String },
+    // Wayuvega Specific Fields
+    wayuvegaOrderId: { type: String },
+    wayuvegaReference: { type: String },
+    wayuvegaStatusCode: { type: String },
+    wayuvegaLastLocation: { type: String },
+    wayuvegaCurrentStep: { type: Number, default: 0 },
     trackingHistory: [
         {
             dateAndTime: { type: Date },
             status: { type: String },
             remark: { type: String },
             location: { type: String },
+            code: { type: String },
         }
     ],
     shippingStatus: {

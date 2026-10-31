@@ -4,6 +4,7 @@ import {
     createShipment,
     trackShipment,
     getTrackingHistory,
+    handleWayuvegaWebhook,
     registerPickup,
     getLabels,
     createReverseOrder,
@@ -20,6 +21,9 @@ router.get('/health', testApi);
 router.post('/serviceability', checkServiceability);
 router.get('/track/:waybill', trackShipment);
 router.get('/tracking-history/:waybill', getTrackingHistory);
+
+// Wayuvega Webhook Status Receiver (Public endpoint for Wayuvega OMS)
+router.post('/wayuvega/webhook', handleWayuvegaWebhook);
 
 // Protected Admin routes
 router.post('/create-shipment', protect, admin, createShipment);
