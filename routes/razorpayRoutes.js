@@ -146,15 +146,25 @@ router.post('/verify', async (req, res) => {
                 console.error(`[RAZORPAY] Stock deduction error for Order ${order._id}:`, deductErr.message);
             }
 
-            // 2. Trigger Shipment (ONLY if just updated to paid)
+            // 2. Trigger Wayuvega Courier Shipment
             try {
-                if (order.shippingProvider === 'Vamaship') {
-                    const { processVamashipShipment } = await import('../utils/vamashipService.js');
-                    await processVamashipShipment(order._id);
-                    console.log(`[RAZORPAY] Vamaship shipment initiated for Order ${order._id}`);
+                const { createWayuvegaOrder } = await import('../utils/wayuvegaService.js');
+                const booking = await createWayuvegaOrder(order);
+                if (booking && booking.success) {
+                    order.waybill = booking.waybill;
+                    order.wayuvegaOrderId = booking.shipmentOrderId || null;
+                    order.wayuvegaReference = booking.orderReferenceNumber || null;
+                    order.courierName = booking.courierName || 'DELHIVERY SURFACE';
+                    order.shippingProvider = 'Wayuvega';
+                    order.wayuvegaStatusCode = '30';
+                    if (booking.labelUrl) {
+                        order.shippingLabelUrl = booking.labelUrl;
+                    }
+                    await order.save();
+                    console.log(`[RAZORPAY] Wayuvega shipment booked for Order ${order._id}, AWB: ${order.waybill}`);
                 }
             } catch (shipmentError) {
-                console.error(`[RAZORPAY] Shipment Trigger Failed for Order ${order._id}:`, shipmentError.message);
+                console.error(`[RAZORPAY] Wayuvega Shipment Trigger Failed for Order ${order._id}:`, shipmentError.message);
             }
 
             // 3. Trigger Verified Order Confirmation Notification
@@ -260,15 +270,25 @@ router.post('/webhook', async (req, res) => {
                 console.warn(`[WEBHOOK] Order confirmation notification warning:`, notifyErr.message);
             }
 
-            // 3. Trigger shipment
+            // 3. Trigger Wayuvega shipment
             try {
-                if (order.shippingProvider === 'Vamaship') {
-                    const { processVamashipShipment } = await import('../utils/vamashipService.js');
-                    await processVamashipShipment(order._id);
-                    console.log(`[WEBHOOK] Vamaship shipment initiated for Order ${order._id}`);
+                const { createWayuvegaOrder } = await import('../utils/wayuvegaService.js');
+                const booking = await createWayuvegaOrder(order);
+                if (booking && booking.success) {
+                    order.waybill = booking.waybill;
+                    order.wayuvegaOrderId = booking.shipmentOrderId || null;
+                    order.wayuvegaReference = booking.orderReferenceNumber || null;
+                    order.courierName = booking.courierName || 'DELHIVERY SURFACE';
+                    order.shippingProvider = 'Wayuvega';
+                    order.wayuvegaStatusCode = '30';
+                    if (booking.labelUrl) {
+                        order.shippingLabelUrl = booking.labelUrl;
+                    }
+                    await order.save();
+                    console.log(`[WEBHOOK] Wayuvega shipment booked for Order ${order._id}, AWB: ${order.waybill}`);
                 }
             } catch (shipmentErr) {
-                console.warn(`[WEBHOOK] Shipment trigger non-fatal error: ${shipmentErr.message}`);
+                console.warn(`[WEBHOOK] Wayuvega shipment trigger non-fatal error: ${shipmentErr.message}`);
             }
 
             // 4. (Optional) Clear Cart if possible (Webhooks have no session, so we rely on finding cart by user ID)

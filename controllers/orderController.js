@@ -1,7 +1,7 @@
 
 import Order from '../models/Order.js';
 import AudienceLead from '../models/AudienceLead.js';
-import { trackWayuvegaHistory, WAYUVEGA_STATUS_MAP } from '../utils/wayuvegaService.js';
+import { createWayuvegaOrder, trackWayuvegaHistory, WAYUVEGA_STATUS_MAP } from '../utils/wayuvegaService.js';
 
 // @desc    Create new order
 // @route   POST /api/orders
@@ -34,10 +34,33 @@ const addOrderItems = async (req, res) => {
             codPrice,
             discountAmount: req.body.discountAmount || 0,
             totalPrice,
-            shippingProvider,
+            shippingProvider: 'Wayuvega',
         });
 
         const createdOrder = await order.save();
+
+        // Directly Book Shipment with Wayuvega
+        try {
+            console.log(`[ORDERS] Directly booking shipment with Wayuvega for Order ${createdOrder._id}...`);
+            const booking = await createWayuvegaOrder(createdOrder);
+            if (booking && booking.success) {
+                createdOrder.waybill = booking.waybill;
+                createdOrder.wayuvegaOrderId = booking.shipmentOrderId || null;
+                createdOrder.wayuvegaReference = booking.orderReferenceNumber || null;
+                createdOrder.courierName = booking.courierName || 'DELHIVERY SURFACE';
+                createdOrder.shippingProvider = 'Wayuvega';
+                createdOrder.wayuvegaStatusCode = '30';
+                createdOrder.wayuvegaCurrentStep = 0;
+                createdOrder.wayuvegaLastLocation = 'Hridved Central Herbarium, Ahmedabad';
+                if (booking.labelUrl) {
+                    createdOrder.shippingLabelUrl = booking.labelUrl;
+                }
+                await createdOrder.save();
+                console.log(`[ORDERS] Wayuvega booking confirmed for Order ${createdOrder._id}, AWB: ${createdOrder.waybill}`);
+            }
+        } catch (wvErr) {
+            console.error('[ORDERS] Wayuvega booking error:', wvErr.message);
+        }
 
         res.status(201).json(createdOrder);
     }
@@ -75,6 +98,26 @@ const updateOrderToPaid = async (req, res) => {
             update_time: req.body.update_time,
             email_address: req.body.payer.email_address,
         };
+
+        // Ensure Wayuvega shipment is booked if not done yet
+        if (!order.waybill || !order.wayuvegaOrderId || order.waybill.startsWith('HRD')) {
+            try {
+                const booking = await createWayuvegaOrder(order);
+                if (booking && booking.success) {
+                    order.waybill = booking.waybill;
+                    order.wayuvegaOrderId = booking.shipmentOrderId || null;
+                    order.wayuvegaReference = booking.orderReferenceNumber || null;
+                    order.courierName = booking.courierName || 'DELHIVERY SURFACE';
+                    order.shippingProvider = 'Wayuvega';
+                    order.wayuvegaStatusCode = '30';
+                    if (booking.labelUrl) {
+                        order.shippingLabelUrl = booking.labelUrl;
+                    }
+                }
+            } catch (wvErr) {
+                console.error('[ORDERS] Wayuvega updateOrderToPaid error:', wvErr.message);
+            }
+        }
 
         const updatedOrder = await order.save();
 

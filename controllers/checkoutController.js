@@ -3,6 +3,7 @@ import Order from '../models/Order.js';
 import Cart from '../models/Cart.js';
 import User from '../models/User.js';
 import SystemConfig from '../models/SystemConfig.js';
+import { createWayuvegaOrder } from '../utils/wayuvegaService.js';
 
 // @desc    Create order from checkout (saves address and shipping method)
 // @route   POST /api/checkout/create-order
@@ -150,8 +151,8 @@ export const createCheckoutOrder = async (req, res) => {
             }
         }
         const finalDeliveryOption = (deliveryOption && typeof deliveryOption === 'string' && deliveryOption.trim() !== '') ? deliveryOption.trim() : 'Standard';
-        const ALLOWED_PROVIDERS = ['Vamaship', 'Local', 'Local Courier', 'Standard', 'Custom', 'Delhivery', 'Shiprocket', 'Other'];
-        const finalShippingProvider = (shippingProvider && ALLOWED_PROVIDERS.includes(shippingProvider)) ? shippingProvider : 'Local Courier';
+        const ALLOWED_PROVIDERS = ['Wayuvega', 'Delhivery', 'Vamaship', 'Local', 'Local Courier', 'Standard', 'Custom', 'Shiprocket', 'Other'];
+        const finalShippingProvider = 'Wayuvega';
         const finalItemsPrice = Number(itemsPrice) || cleanOrderItems.reduce((acc, it) => acc + (it.price * it.qty), 0);
         const finalShippingPrice = Number(shippingPrice) || 0;
         const finalDiscount = Number(discountAmount) || 0;
@@ -180,7 +181,33 @@ export const createCheckoutOrder = async (req, res) => {
 
         const createdOrder = await order.save();
 
-        // 7. Handle Post-Creation Actions for COD
+        // 7. Directly Book Shipment with Wayuvega
+        try {
+            console.log(`[CHECKOUT] Directly creating shipment on Wayuvega for Order ${createdOrder._id}...`);
+            const booking = await createWayuvegaOrder(createdOrder);
+            if (booking && booking.success) {
+                createdOrder.waybill = booking.waybill;
+                createdOrder.wayuvegaOrderId = booking.shipmentOrderId || null;
+                createdOrder.wayuvegaReference = booking.orderReferenceNumber || null;
+                createdOrder.courierName = booking.courierName || 'DELHIVERY SURFACE';
+                createdOrder.shippingProvider = 'Wayuvega';
+                createdOrder.wayuvegaStatusCode = '30';
+                createdOrder.wayuvegaCurrentStep = 0;
+                createdOrder.wayuvegaLastLocation = 'Hridved Central Herbarium, Ahmedabad';
+                if (booking.labelUrl) {
+                    createdOrder.shippingLabelUrl = booking.labelUrl;
+                }
+                console.log(`[CHECKOUT] Wayuvega booking confirmed for Order ${createdOrder._id}, AWB: ${createdOrder.waybill}`);
+            } else {
+                createdOrder.waybill = createdOrder.waybill || `HRD${Math.floor(10000000 + Math.random() * 90000000)}`;
+            }
+        } catch (wvErr) {
+            console.error('[CHECKOUT] Wayuvega direct booking error:', wvErr.message);
+            createdOrder.waybill = createdOrder.waybill || `HRD${Math.floor(10000000 + Math.random() * 90000000)}`;
+        }
+        await createdOrder.save();
+
+        // 8. Handle Post-Creation Actions for COD
         if (paymentMethod === 'COD') {
             // Clear user cart if logged in
             if (req.user?._id) {
@@ -191,10 +218,6 @@ export const createCheckoutOrder = async (req, res) => {
                     console.error('[CHECKOUT] Error clearing cart for COD:', cartError);
                 }
             }
-
-            // Generate Waybill
-            createdOrder.waybill = `HRD${Math.floor(10000000 + Math.random() * 90000000)}`;
-            await createdOrder.save();
 
             // Deduct stock safely
             try {
