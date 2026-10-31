@@ -227,13 +227,13 @@ export const createWayuvegaOrder = async (order, options = {}) => {
                 shipment_packages: [
                     {
                         dimensions: {
-                            length: 20,
-                            breadth: 15,
-                            height: 10,
+                            length: Number(process.env.WAYUVEGA_PACKAGE_LENGTH_CM || 15),
+                            breadth: Number(process.env.WAYUVEGA_PACKAGE_BREADTH_CM || 10),
+                            height: Number(process.env.WAYUVEGA_PACKAGE_HEIGHT_CM || 10),
                             unit: 'cm',
                         },
                         weight: {
-                            value: 500, // 500g default for herbal packages
+                            value: Number(process.env.WAYUVEGA_DEFAULT_WEIGHT_GRAMS || 500), // 500gm default as requested
                             unit: 'gm',
                         },
                         items: items,
