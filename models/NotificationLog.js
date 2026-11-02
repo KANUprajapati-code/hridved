@@ -50,8 +50,7 @@ const notificationLogSchema = new mongoose.Schema({
     },
     provider: {
         type: String,
-        enum: ['fast2sms', 'twilio', 'wati', 'interakt', 'simulator', 'none'],
-        default: 'simulator',
+        default: 'fast2sms',
     },
     triggerReason: {
         type: String,

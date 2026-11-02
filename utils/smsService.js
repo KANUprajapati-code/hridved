@@ -49,10 +49,11 @@ export const checkFast2SMSBalance = async () => {
 
 /**
  * Send real OTP via SMS to Indian mobile numbers
- * Supports Fast2SMS (Dedicated OTP, Quick SMS route 'q', OTP route 'otp', DLT), 2Factor.in, and Twilio.
+ * Fast2SMS Quick OTP Route ('otp') - No DLT Registration required!
+ * Fast2SMS uses their pre-approved DLT template and delivers numeric OTP directly.
  * 
  * @param {string} phone - 10-digit mobile number
- * @param {string} otp - 6-digit OTP code
+ * @param {string} otp - 6-digit numeric OTP code
  * @returns {Promise<{success: boolean, message: string, simulated?: boolean, provider?: string, statusCode?: number}>}
  */
 export const sendSMS = async (phone, otp) => {
@@ -62,66 +63,29 @@ export const sendSMS = async (phone, otp) => {
         return { success: false, message: 'Invalid 10-digit Indian mobile number' };
     }
 
-    console.log(`[SMS-SERVICE] Initiating SMS dispatch for +91 ${cleanPhone}`);
+    const cleanOtp = String(otp).trim();
+    console.log(`[SMS-SERVICE] Initiating Fast2SMS Quick OTP (No DLT) for +91 ${cleanPhone}`);
 
     let lastError = '';
     let lastStatusCode = null;
 
-    // 1. FAST2SMS (India's most popular OTP gateway)
+    // 1. FAST2SMS Quick OTP Route (NO DLT REQUIRED)
     const fast2smsKey = process.env.FAST2SMS_API_KEY;
     if (fast2smsKey && fast2smsKey !== 'your_fast2sms_api_key_here') {
         const trimmedKey = fast2smsKey.trim();
 
-        // Strategy A: If Fast2SMS OTP Template ID is provided, use dedicated OTP endpoint
-        if (process.env.FAST2SMS_OTP_ID) {
-            try {
-                console.log(`[SMS-SERVICE] Attempting Fast2SMS Dedicated OTP endpoint for +91 ${cleanPhone}...`);
-                const response = await axios.post(
-                    'https://www.fast2sms.com/dev/otp/send',
-                    {
-                        mobile: cleanPhone,
-                        otp_id: process.env.FAST2SMS_OTP_ID.trim(),
-                        otp: String(otp),
-                        otp_expiry: 10,
-                        otp_length: otp.length,
-                    },
-                    {
-                        headers: {
-                            authorization: trimmedKey,
-                            'Content-Type': 'application/json',
-                        },
-                        timeout: 8000,
-                    }
-                );
-
-                if (response.data && (response.data.return === true || response.data.status_code === 200)) {
-                    console.log(`[SMS-SERVICE] Fast2SMS Dedicated OTP sent successfully to +91 ${cleanPhone}`);
-                    return {
-                        success: true,
-                        message: 'OTP delivered to your mobile phone via SMS',
-                        provider: 'Fast2SMS (Dedicated OTP)',
-                        requestId: response.data.request_id,
-                    };
-                }
-            } catch (otpErr) {
-                lastError = otpErr.response?.data?.message || otpErr.message;
-                lastStatusCode = otpErr.response?.data?.status_code || otpErr.response?.status;
-                console.warn('[SMS-SERVICE] Dedicated OTP failed, falling back to Quick/OTP route:', otpErr.response?.data || otpErr.message);
-            }
-        }
-
-        // Strategy B: Quick SMS Route ('q') - Universal route without strict DLT approval requirements
+        // Primary: Fast2SMS bulkV2 OTP route via POST JSON
         try {
-            console.log(`[SMS-SERVICE] Attempting Fast2SMS Quick SMS ('q') for +91 ${cleanPhone}...`);
-            const quickPayload = {
-                route: 'q',
-                message: `Your Hridved verification OTP is ${otp}. Valid for 10 minutes. Do not share this code.`,
+            console.log(`[SMS-SERVICE] Dispatching via Fast2SMS Quick OTP route ('otp') to +91 ${cleanPhone}...`);
+            const payload = {
+                route: 'otp',
+                variables_values: cleanOtp,
                 numbers: cleanPhone,
             };
 
             const response = await axios.post(
                 'https://www.fast2sms.com/dev/bulkV2',
-                quickPayload,
+                payload,
                 {
                     headers: {
                         authorization: trimmedKey,
@@ -132,84 +96,52 @@ export const sendSMS = async (phone, otp) => {
             );
 
             if (response.data && (response.data.return === true || response.data.status_code === 200)) {
-                console.log(`[SMS-SERVICE] Fast2SMS Quick SMS dispatch successful for +91 ${cleanPhone}`);
+                console.log(`[SMS-SERVICE] Fast2SMS Quick OTP delivered successfully to +91 ${cleanPhone}`);
                 return {
                     success: true,
                     message: 'OTP delivered to your mobile phone via SMS',
-                    provider: 'Fast2SMS (Quick SMS)',
+                    provider: 'Fast2SMS (Quick OTP)',
                     requestId: response.data.request_id,
                 };
             }
 
             const statusCode = response.data?.status_code;
             lastStatusCode = statusCode;
-            lastError = response.data?.message || lastError;
-            if (statusCode === 413) {
-                console.warn('[SMS-SERVICE] Fast2SMS Error 413: Authorization Key Disabled in your Fast2SMS account console.');
-            } else if (statusCode === 416) {
-                console.warn('[SMS-SERVICE] Fast2SMS Error 416: Insufficient wallet balance in your Fast2SMS account.');
-            } else if (statusCode === 996) {
-                console.warn('[SMS-SERVICE] Fast2SMS Error 996: KYC verification required on fast2sms.com.');
-            }
-        } catch (error) {
-            const errData = error.response?.data;
-            const statusCode = errData?.status_code || error.response?.status;
-            lastStatusCode = statusCode;
-            lastError = errData?.message || error.message;
-            console.error(`[SMS-SERVICE] Fast2SMS Quick SMS Error (HTTP ${error.response?.status || 'ERR'}, Code: ${statusCode}):`, errData || error.message);
-            
-            // Check if key is explicitly disabled or unauthorized
-            if (statusCode === 413 || statusCode === 412) {
-                console.warn('[SMS-SERVICE] Fast2SMS Key is disabled or invalid. Please update FAST2SMS_API_KEY with an active key.');
-            }
-        }
+            lastError = response.data?.message || 'Fast2SMS OTP dispatch failed';
+        } catch (postErr) {
+            const errData = postErr.response?.data;
+            lastStatusCode = errData?.status_code || postErr.response?.status;
+            lastError = errData?.message || postErr.message;
+            console.warn(`[SMS-SERVICE] Fast2SMS POST OTP failed (HTTP ${postErr.response?.status}, Code: ${lastStatusCode}):`, errData || postErr.message);
 
-        // Strategy C: OTP Route ('otp')
-        try {
-            console.log(`[SMS-SERVICE] Attempting Fast2SMS OTP route ('otp') for +91 ${cleanPhone}...`);
-            const params = new URLSearchParams({
-                variables_values: otp,
-                route: 'otp',
-                numbers: cleanPhone,
-            });
-
-            const response = await axios.post(
-                'https://www.fast2sms.com/dev/bulkV2',
-                params.toString(),
-                {
-                    headers: {
-                        authorization: trimmedKey,
-                        'Content-Type': 'application/x-www-form-urlencoded',
-                    },
-                    timeout: 8000,
+            // If POST failed with network/gateway issue, attempt GET fallback
+            if (lastStatusCode !== 413 && lastStatusCode !== 412) {
+                try {
+                    console.log(`[SMS-SERVICE] Attempting Fast2SMS Quick OTP GET fallback for +91 ${cleanPhone}...`);
+                    const getUrl = `https://www.fast2sms.com/dev/bulkV2?authorization=${encodeURIComponent(trimmedKey)}&route=otp&variables_values=${encodeURIComponent(cleanOtp)}&numbers=${cleanPhone}`;
+                    const getRes = await axios.get(getUrl, { timeout: 8000 });
+                    if (getRes.data && (getRes.data.return === true || getRes.data.status_code === 200)) {
+                        console.log(`[SMS-SERVICE] Fast2SMS Quick OTP GET fallback delivered successfully to +91 ${cleanPhone}`);
+                        return {
+                            success: true,
+                            message: 'OTP delivered to your mobile phone via SMS',
+                            provider: 'Fast2SMS (Quick OTP GET)',
+                            requestId: getRes.data.request_id,
+                        };
+                    }
+                } catch (getErr) {
+                    console.warn('[SMS-SERVICE] Fast2SMS GET fallback also failed:', getErr.response?.data || getErr.message);
                 }
-            );
-
-            if (response.data && (response.data.return === true || response.data.status_code === 200)) {
-                console.log(`[SMS-SERVICE] Fast2SMS OTP route dispatch successful for +91 ${cleanPhone}`);
-                return {
-                    success: true,
-                    message: 'OTP delivered to your mobile phone via SMS',
-                    provider: 'Fast2SMS (OTP Route)',
-                };
             }
-            if (response.data?.status_code) {
-                lastStatusCode = response.data.status_code;
-                lastError = response.data.message || lastError;
-            }
-        } catch (error) {
-            lastStatusCode = error.response?.data?.status_code || lastStatusCode;
-            lastError = error.response?.data?.message || lastError;
-            console.warn('[SMS-SERVICE] Fast2SMS OTP Route Error:', error.response?.data || error.message);
         }
     }
 
-    // 2. 2FACTOR.IN (High-priority Indian Transactional OTP)
+    // 2. 2FACTOR.IN (Backup gateway if configured)
     const twoFactorKey = process.env.TWOFACTOR_API_KEY;
     if (twoFactorKey && twoFactorKey !== 'your_2factor_api_key_here') {
         try {
-            console.log(`[SMS-SERVICE] Attempting 2Factor.in for +91 ${cleanPhone}...`);
-            const url = `https://2factor.in/API/V1/${encodeURIComponent(twoFactorKey.trim())}/SMS/${cleanPhone}/${otp}/`;
+            console.log(`[SMS-SERVICE] Attempting 2Factor.in backup for +91 ${cleanPhone}...`);
+            const url = `https://2factor.in/API/V1/${encodeURIComponent(twoFactorKey.trim())}/SMS/${cleanPhone}/${cleanOtp}/`;
             const response = await axios.get(url, { timeout: 8000 });
 
             if (response.data && response.data.Status === 'Success') {
@@ -225,14 +157,14 @@ export const sendSMS = async (phone, otp) => {
         }
     }
 
-    // 3. Fallback: Return actual error
+    // 3. Fallback: Return actual status and clear reason
     console.warn(`[SMS-SERVICE] SMS Gateway did not deliver to ${cleanPhone}. Reason: ${lastError || 'Gateway unavailable'}`);
     return {
         success: false,
         simulated: true,
         statusCode: lastStatusCode,
         message: lastError || 'SMS gateway unavailable',
-        provider: 'Fast2SMS',
+        provider: 'Fast2SMS (Quick OTP)',
     };
 };
 
