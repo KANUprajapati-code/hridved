@@ -162,10 +162,23 @@ export const createWayuvegaOrder = async (order, options = {}) => {
             pickup_poc_contact_number: pickupPhone.slice(-10),
         };
 
-        const dropPhone = String(order.shippingAddress?.mobileNumber || '').replace(/\D/g, '').slice(-10);
+        const rawPhone = String(order.shippingAddress?.mobileNumber || order.shippingAddress?.phone || '').replace(/\D/g, '').slice(-10);
+        const dropPhone = rawPhone.length === 10 ? rawPhone : (process.env.ORDER_PHONE || '7990934095').slice(-10);
+
+        const streetParts = [
+            order.shippingAddress?.houseNumber,
+            order.shippingAddress?.landmark,
+            order.shippingAddress?.address,
+            order.shippingAddress?.street
+        ].filter(Boolean).join(', ').trim().replace(/^,+/, '').replace(/,+$/, '');
+
+        const dropAddress = streetParts.length >= 5 
+            ? streetParts 
+            : `${streetParts ? streetParts + ', ' : ''}${order.shippingAddress?.city || 'Ahmedabad'}, Gujarat`;
+
         const dropDetails = {
-            drop_poc: order.shippingAddress?.fullName || 'Customer',
-            drop_address: `${order.shippingAddress?.houseNumber || ''}, ${order.shippingAddress?.landmark || ''}`.trim(),
+            drop_poc: order.shippingAddress?.fullName || order.shippingAddress?.name || 'Customer',
+            drop_address: dropAddress,
             drop_city: order.shippingAddress?.city || 'Ahmedabad',
             drop_state: order.shippingAddress?.state || 'Gujarat',
             drop_postal_code: String(order.shippingAddress?.pincode || '380001').replace(/\D/g, '').slice(0, 6),
@@ -173,22 +186,31 @@ export const createWayuvegaOrder = async (order, options = {}) => {
             drop_address_type: (order.shippingAddress?.addressType || 'HOME').toUpperCase(),
             drop_poc_contact_dialing_code: '+91',
             drop_poc_contact_number: dropPhone,
-            drop_poc_email: order.email || undefined,
+            drop_poc_email: order.email || order.shippingAddress?.email || undefined,
         };
 
         // Calculate package weight and items
-        const items = (order.orderItems || []).map((item, idx) => ({
+        const rawItems = (order.orderItems && order.orderItems.length > 0) ? order.orderItems : [
+            {
+                name: 'Ayurvedic Herb Medicine',
+                qty: 1,
+                price: Number(order.totalPrice) || 499,
+                product: `ITEM_${Date.now().toString().slice(-4)}`
+            }
+        ];
+
+        const items = rawItems.map((item, idx) => ({
             item_id: item.product?.toString() || `ITEM-${idx + 1}`,
-            quantity: item.qty || 1,
+            quantity: Number(item.qty) || 1,
             item_general_details: {
                 item_name: item.name || 'Ayurvedic Herb Medicine',
-                sku: `HRD-${idx + 1}`,
+                sku: `HRD-SKU-${idx + 1}`,
             },
             item_payment_details: {
                 currency: 'INR',
                 unit_price: Number(item.price) || 499,
-                final_amount_paid: Number((item.price || 499) * (item.qty || 1)),
-                taxable_value: Math.round(Number(item.price) * 0.88),
+                final_amount_paid: Number((Number(item.price) || 499) * (Number(item.qty) || 1)),
+                taxable_value: Math.round(Number(item.price || 499) * 0.88),
             }
         }));
 

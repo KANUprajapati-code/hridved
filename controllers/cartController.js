@@ -77,8 +77,8 @@ const clearCart = async (req, res) => {
         await cart.save();
         res.json(cart);
     } else {
-        res.status(404);
-        throw new Error('Cart not found');
+        // Return clean empty cart instead of 404
+        res.status(200).json({ cartItems: [] });
     }
 };
 

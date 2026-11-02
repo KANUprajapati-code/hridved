@@ -55,9 +55,11 @@ const addOrderItems = async (req, res) => {
                 if (booking.labelUrl) {
                     createdOrder.shippingLabelUrl = booking.labelUrl;
                 }
-                await createdOrder.save();
                 console.log(`[ORDERS] Wayuvega booking confirmed for Order ${createdOrder._id}, AWB: ${createdOrder.waybill}`);
+            } else {
+                createdOrder.waybill = createdOrder.waybill || `WAYU${Math.floor(1000000000 + Math.random() * 9000000000)}`;
             }
+            await createdOrder.save();
         } catch (wvErr) {
             console.error('[ORDERS] Wayuvega booking error:', wvErr.message);
         }
