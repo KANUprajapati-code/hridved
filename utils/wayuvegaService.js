@@ -95,7 +95,7 @@ export const checkWayuvegaServiceability = async (pickupPincode = '380001', drop
             drop_pincode: cleanDrop,
         }, {
             headers: {
-                Authorization: `Bearer ${token}`,
+                Authorization: token.trim(), // Send bare token without "Bearer"
                 'Content-Type': 'application/json',
             },
             timeout: 10000,
@@ -249,7 +249,7 @@ export const createWayuvegaOrder = async (order, options = {}) => {
 
         const response = await axios.post(`${OMS_BASE_URL}/v2/oms/order`, payload, {
             headers: {
-                Authorization: `Bearer ${token}`,
+                Authorization: token.trim(), // Send bare token without "Bearer"
                 'Content-Type': 'application/json',
             },
             timeout: 15000,
@@ -328,7 +328,7 @@ export const trackWayuvegaHistory = async (awbOrRef) => {
 
         const response = await axios.post(`${OMS_BASE_URL}/v2/oms/order/tracking/history`, payload, {
             headers: {
-                Authorization: `Bearer ${token}`,
+                Authorization: token.trim(), // Send bare token without "Bearer"
                 'Content-Type': 'application/json',
             },
             timeout: 10000,
@@ -400,7 +400,7 @@ export const cancelWayuvegaOrder = async (waybill) => {
             order_reference_number: null,
         }, {
             headers: {
-                Authorization: `Bearer ${token}`,
+                Authorization: token.trim(), // Send bare token without "Bearer"
                 'Content-Type': 'application/json',
             },
             timeout: 10000,
