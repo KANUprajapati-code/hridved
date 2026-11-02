@@ -5,7 +5,8 @@ import Category from '../models/Category.js';
 // @route   GET /api/categories
 // @access  Public
 const getCategories = async (req, res) => {
-    const categories = await Category.find({});
+    res.setHeader('Cache-Control', 'public, max-age=120, s-maxage=600, stale-while-revalidate=1200');
+    const categories = await Category.find({}).lean();
     res.json(categories);
 };
 

@@ -112,6 +112,13 @@ const productSchema = mongoose.Schema({
     timestamps: true,
 });
 
+// Indexes for fast querying & filtering on Shop page
+productSchema.index({ category: 1, createdAt: -1 });
+productSchema.index({ price: 1 });
+productSchema.index({ createdAt: -1 });
+productSchema.index({ isFeatured: 1 });
+productSchema.index({ isBestseller: 1 });
+
 const Product = mongoose.model('Product', productSchema);
 
 export default Product;

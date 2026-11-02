@@ -61,11 +61,18 @@ const getProducts = async (req, res) => {
         sort = { createdAt: -1 };
     }
 
-    const count = await Product.countDocuments({ ...keyword });
-    const products = await Product.find({ ...keyword })
-        .sort(sort)
-        .limit(pageSize)
-        .skip(pageSize * (page - 1));
+    const [count, products] = await Promise.all([
+        Product.countDocuments(keyword),
+        Product.find(keyword)
+            .select('name price mrp image isBestseller countInStock rating numReviews category isFeatured')
+            .sort(sort)
+            .limit(pageSize)
+            .skip(pageSize * (page - 1))
+            .lean()
+    ]);
+
+    // Edge CDN & browser caching: Ultra-fast repeat loads & instant CDN caching
+    res.setHeader('Cache-Control', 'public, max-age=60, s-maxage=300, stale-while-revalidate=600');
 
     res.json({ products, page, pages: Math.ceil(count / pageSize), count });
 };

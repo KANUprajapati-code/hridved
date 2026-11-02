@@ -5,7 +5,8 @@ import Content from '../models/Content.js';
 // @route   GET /api/content
 // @access  Public
 const getContent = async (req, res) => {
-    const content = await Content.find({});
+    res.setHeader('Cache-Control', 'public, max-age=120, s-maxage=600, stale-while-revalidate=1200');
+    const content = await Content.find({}).lean();
     // Convert array to object for easier frontend access: { hero: {...}, tradition: {...} }
     const contentMap = content.reduce((acc, item) => {
         acc[item.section] = item;
