@@ -167,13 +167,12 @@ router.post('/verify', async (req, res) => {
                 console.error(`[RAZORPAY] Wayuvega Shipment Trigger Failed for Order ${order._id}:`, shipmentError.message);
             }
 
-            // 3. Trigger Verified Order Confirmation Notification
-            try {
-                const { sendOrderConfirmation } = await import('../utils/notificationService.js');
-                await sendOrderConfirmation(order._id);
-            } catch (notifyErr) {
-                console.warn('[RAZORPAY] Order confirmation notification warning:', notifyErr.message);
-            }
+            // 3. Trigger Verified Order Confirmation Notification asynchronously
+            import('../utils/notificationService.js').then(({ sendOrderConfirmation }) => {
+                sendOrderConfirmation(order._id).catch(notifyErr => {
+                    console.warn('[RAZORPAY] Order confirmation notification warning:', notifyErr.message);
+                });
+            }).catch(() => {});
         } else {
             console.log(`[RAZORPAY] Order ${order._id} already marked as paid. Skipping update.`);
         }

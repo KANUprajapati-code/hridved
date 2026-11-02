@@ -227,13 +227,12 @@ export const createCheckoutOrder = async (req, res) => {
                 console.error('[CHECKOUT] Stock deduction error for COD:', deductErr);
             }
 
-            // Trigger Order Confirmation Notification
-            try {
-                const { sendOrderConfirmation } = await import('../utils/notificationService.js');
-                await sendOrderConfirmation(createdOrder._id);
-            } catch (notifyErr) {
-                console.warn('[CHECKOUT] Order confirmation notification warning:', notifyErr.message);
-            }
+            // Trigger Order Confirmation Notification asynchronously without blocking checkout response
+            import('../utils/notificationService.js').then(({ sendOrderConfirmation }) => {
+                sendOrderConfirmation(createdOrder._id).catch(notifyErr => {
+                    console.warn('[CHECKOUT] Order confirmation notification warning:', notifyErr.message);
+                });
+            }).catch(() => {});
         }
 
         console.log(`[CHECKOUT] Order Created Successfully: ${createdOrder._id} (Method: ${paymentMethod})`);

@@ -12,8 +12,8 @@ let cachedMerchantId = null;
  * 1. Authenticate with Wayuvega IAM and cache JWT token (valid for 1 hour)
  */
 export const getWayuvegaAuthToken = async () => {
-    const username = process.env.WAYUVEGA_USERNAME;
-    const password = process.env.WAYUVEGA_PASSWORD;
+    const username = (process.env.WAYUVEGA_USERNAME || 'hridved').trim();
+    const password = (process.env.WAYUVEGA_PASSWORD || 'Kamal.7710').trim();
 
     if (!username || !password) {
         console.warn('[WAYUVEGA] Credentials not configured in environment variables');

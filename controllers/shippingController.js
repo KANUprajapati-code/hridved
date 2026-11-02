@@ -454,6 +454,6 @@ export const createReverseOrder = async (req, res) => {
 export const testApi = async (req, res) => {
     res.json({ 
         message: 'Shipping API Health OK',
-        wayuvegaConfigured: Boolean(process.env.WAYUVEGA_USERNAME && process.env.WAYUVEGA_PASSWORD)
+        wayuvegaConfigured: Boolean((process.env.WAYUVEGA_USERNAME || 'hridved') && (process.env.WAYUVEGA_PASSWORD || 'Kamal.7710'))
     });
 };
