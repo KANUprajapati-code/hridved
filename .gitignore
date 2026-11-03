@@ -23,5 +23,6 @@ users_list.txt
 # OS & IDE
 .DS_Store
 Thumbs.db
+backups/
 .vscode/
 .idea/
