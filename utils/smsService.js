@@ -69,15 +69,28 @@ export const sendSMS = async (phone, otp) => {
     let lastError = '';
     let lastStatusCode = null;
 
-    // 1. APITxT Direct No-DLT Gateway (Primary)
+    // 1. APITxT Unified OTP Gateway (No-DLT - Supports SMS, WhatsApp, and Voice)
     const apitxtKey = process.env.APITXT_AUTH_KEY;
     if (apitxtKey && apitxtKey.trim()) {
+        const channel = (options.channel || process.env.APITXT_CHANNEL || 'sms').toLowerCase();
         try {
-            console.log(`[SMS-SERVICE] Dispatching via APITxT (No DLT) to +91 ${cleanPhone}...`);
+            console.log(`[SMS-SERVICE] Dispatching via APITxT Unified API (${channel.toUpperCase()}) to +91 ${cleanPhone}...`);
             const params = new URLSearchParams();
             params.append('authkey', apitxtKey.trim());
             params.append('mobile', cleanPhone);
             params.append('otp', cleanOtp);
+            params.append('channel', channel);
+            params.append('country', String(options.country || '91'));
+
+            if (options.templateId || process.env.APITXT_TEMPLATE_ID) {
+                params.append('template_id', String(options.templateId || process.env.APITXT_TEMPLATE_ID));
+            }
+            if (options.templateName || process.env.APITXT_TEMPLATE_NAME) {
+                params.append('template_name', String(options.templateName || process.env.APITXT_TEMPLATE_NAME));
+            }
+            if (options.projectRefId || process.env.APITXT_PROJECT_REF_ID) {
+                params.append('project_ref_id', String(options.projectRefId || process.env.APITXT_PROJECT_REF_ID));
+            }
 
             const response = await axios.post(
                 'https://apitxt.com/api/sendOTP',
@@ -91,12 +104,17 @@ export const sendSMS = async (phone, otp) => {
             );
 
             if (response.data && (response.data.status === 'success' || response.status === 200)) {
-                console.log(`[SMS-SERVICE] APITxT OTP delivered successfully to +91 ${cleanPhone}. Request ID:`, response.data.data?.request_id);
+                const reqId = response.data.data?.request_id || response.data.request_id || `APITXT-${Date.now()}`;
+                const cost = response.data.data?.cost;
+                console.log(`[SMS-SERVICE] APITxT ${channel.toUpperCase()} OTP delivered successfully to +91 ${cleanPhone}. Request ID: ${reqId}${cost !== undefined ? `, Cost: ₹${cost}` : ''}`);
                 return {
                     success: true,
-                    message: 'OTP delivered to your mobile phone via SMS',
-                    provider: 'APITxT (Instant SMS)',
-                    requestId: response.data.data?.request_id || response.data.request_id,
+                    message: channel === 'whatsapp'
+                        ? 'OTP delivered to your WhatsApp'
+                        : (channel === 'voice' ? 'OTP delivered via voice call' : 'OTP delivered to your mobile phone via SMS'),
+                    provider: `APITxT (${channel.toUpperCase()} OTP)`,
+                    requestId: reqId,
+                    cost: cost,
                 };
             }
 
