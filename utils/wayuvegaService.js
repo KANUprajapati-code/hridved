@@ -71,7 +71,7 @@ export const getWayuvegaAuthToken = async () => {
  * @param {string} pickupPincode 
  * @param {string} dropPincode 
  */
-export const checkWayuvegaServiceability = async (pickupPincode = '380001', dropPincode) => {
+export const checkWayuvegaServiceability = async (pickupPincode = (process.env.WAYUVEGA_DEFAULT_PICKUP_PINCODE || '383325'), dropPincode) => {
     const cleanPickup = String(pickupPincode).replace(/\D/g, '').slice(0, 6);
     const cleanDrop = String(dropPincode).replace(/\D/g, '').slice(0, 6);
 
@@ -149,17 +149,35 @@ export const createWayuvegaOrder = async (order, options = {}) => {
     try {
         const pickupPhone = process.env.ORDER_PHONE || '7990934095';
         const defaultPickup = {
-            pickup_poc: 'Hridved Fulfillment Desk',
-            pickup_organisation: 'Hridved Ayurveda',
-            pickup_address: 'Hridved Ayurvedic Herbarium, Opp. Science City',
-            pickup_city: 'Ahmedabad',
-            pickup_state: 'Gujarat',
-            pickup_postal_code: '380060',
+            pickup_poc: process.env.WAYUVEGA_PICKUP_POC || 'Hridved Fulfillment Desk',
+            pickup_organisation: process.env.WAYUVEGA_PICKUP_ORG || 'Hridved Ayurveda',
+            pickup_address: process.env.WAYUVEGA_PICKUP_ADDRESS || 'E/23 Vraj garden society',
+            pickup_landmark: process.env.WAYUVEGA_PICKUP_LANDMARK || 'Vraj Garden Society, Bayad',
+            pickup_district: process.env.WAYUVEGA_PICKUP_DISTRICT || 'Aravalli',
+            pickup_city: process.env.WAYUVEGA_PICKUP_CITY || 'Bayad',
+            pickup_state: process.env.WAYUVEGA_PICKUP_STATE || 'Gujarat',
+            pickup_postal_code: String(process.env.WAYUVEGA_DEFAULT_PICKUP_PINCODE || '383325').trim(),
             pickup_country_code: 'IN',
             pickup_address_type: 'WAREHOUSE',
-            pickup_poc_email: 'care@hridved.com',
+            pickup_poc_email: process.env.WAYUVEGA_PICKUP_EMAIL || 'care@hridved.com',
             pickup_poc_contact_dialing_code: '+91',
             pickup_poc_contact_number: pickupPhone.slice(-10),
+        };
+
+        const defaultReturn = {
+            return_poc: process.env.WAYUVEGA_PICKUP_POC || 'Hridved Fulfillment Desk',
+            return_organisation: process.env.WAYUVEGA_PICKUP_ORG || 'Hridved Ayurveda',
+            return_address: process.env.WAYUVEGA_PICKUP_ADDRESS || 'E/23 Vraj garden society',
+            return_landmark: process.env.WAYUVEGA_PICKUP_LANDMARK || 'Vraj Garden Society, Bayad',
+            return_district: process.env.WAYUVEGA_PICKUP_DISTRICT || 'Aravalli',
+            return_city: process.env.WAYUVEGA_PICKUP_CITY || 'Bayad',
+            return_state: process.env.WAYUVEGA_PICKUP_STATE || 'Gujarat',
+            return_postal_code: String(process.env.WAYUVEGA_DEFAULT_PICKUP_PINCODE || '383325').trim(),
+            return_country_code: 'IN',
+            return_address_type: 'WAREHOUSE',
+            return_poc_email: process.env.WAYUVEGA_PICKUP_EMAIL || 'care@hridved.com',
+            return_poc_contact_dialing_code: '+91',
+            return_poc_contact_number: pickupPhone.slice(-10),
         };
 
         const rawPhone = String(order.shippingAddress?.mobileNumber || order.shippingAddress?.phone || '').replace(/\D/g, '').slice(-10);
@@ -225,6 +243,7 @@ export const createWayuvegaOrder = async (order, options = {}) => {
             marketplace_channel_order_number: String(order._id).slice(-8).toUpperCase(),
             order_source: 'MERCHANT_API',
             pickup_details: options.pickupDetails || defaultPickup,
+            return_on_failed_delivery_details: options.returnDetails || defaultReturn,
             drop_details: dropDetails,
             shipment_details: {
                 shipment_carrier_details: {

@@ -193,7 +193,7 @@ export const createCheckoutOrder = async (req, res) => {
                 createdOrder.shippingProvider = 'Wayuvega';
                 createdOrder.wayuvegaStatusCode = '30';
                 createdOrder.wayuvegaCurrentStep = 0;
-                createdOrder.wayuvegaLastLocation = 'Hridved Central Herbarium, Ahmedabad';
+                createdOrder.wayuvegaLastLocation = 'Hridved Fulfillment Facility, Bayad';
                 if (booking.labelUrl) {
                     createdOrder.shippingLabelUrl = booking.labelUrl;
                 }

@@ -51,7 +51,7 @@ const addOrderItems = async (req, res) => {
                 createdOrder.shippingProvider = 'Wayuvega';
                 createdOrder.wayuvegaStatusCode = '30';
                 createdOrder.wayuvegaCurrentStep = 0;
-                createdOrder.wayuvegaLastLocation = 'Hridved Central Herbarium, Ahmedabad';
+                createdOrder.wayuvegaLastLocation = 'Hridved Fulfillment Facility, Bayad';
                 if (booking.labelUrl) {
                     createdOrder.shippingLabelUrl = booking.labelUrl;
                 }
@@ -382,7 +382,7 @@ const trackOrder = async (req, res) => {
                             code: '30',
                             status: 'Order Placed & Confirmed',
                             description: 'Order placed and herbal formulations verified by Hridved dispensary',
-                            location: 'Hridved Central Herbarium, Ahmedabad',
+                            location: 'Hridved Fulfillment Facility, Bayad',
                             timestamp: created,
                             step: 0
                         }

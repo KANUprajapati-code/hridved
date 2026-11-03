@@ -18,7 +18,7 @@ const generateFallbackTimeline = (order) => {
             code: '30',
             status: 'Order Placed & Confirmed',
             description: 'Order placed and herbal formulations verified by Hridved dispensary',
-            location: 'Hridved Central Herbarium, Ahmedabad',
+            location: 'Hridved Fulfillment Facility, Bayad',
             timestamp: created,
             step: 0
         }
@@ -124,7 +124,7 @@ export const checkServiceability = async (req, res) => {
         }
 
         // Check Wayuvega Courier Partner Serviceability
-        const pickupPincode = process.env.WAYUVEGA_DEFAULT_PICKUP_PINCODE || '380060';
+        const pickupPincode = process.env.WAYUVEGA_DEFAULT_PICKUP_PINCODE || '383325';
         const wayuvegaResult = await checkWayuvegaServiceability(pickupPincode, pincode);
 
         const shippingOptions = [
