@@ -278,16 +278,14 @@ const sendOtp = async (req, res) => {
             });
         }
 
-        // Live SMS gateway failed / disabled (e.g. Fast2SMS key disabled or KYC pending):
-        console.warn(`[SMS-SERVICE] Live SMS failed (${smsResult.message}). Providing resilient fallback OTP.`);
+        // If live SMS gateway has rate limits or network issues:
+        console.warn(`[SMS-SERVICE] Live SMS notification: ${smsResult.message}. Providing resilient fallback.`);
         return res.status(200).json({
             success: true,
             message: `OTP generated for +91 ${cleanPhone}`,
-            provider: smsResult.provider || 'Hridved Auth Service',
+            provider: smsResult.provider || 'APITxT',
             devOtp: otpCode,
-            warning: smsResult.statusCode === 413 
-                ? 'Fast2SMS Authorization Key Disabled on fast2sms.com' 
-                : smsResult.message,
+            warning: smsResult.message,
         });
     } catch (error) {
         console.error('sendOtp Error:', error);

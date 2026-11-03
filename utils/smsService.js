@@ -56,7 +56,7 @@ export const checkFast2SMSBalance = async () => {
  * @param {string} otp - 6-digit numeric OTP code
  * @returns {Promise<{success: boolean, message: string, simulated?: boolean, provider?: string, statusCode?: number}>}
  */
-export const sendSMS = async (phone, otp) => {
+export const sendSMS = async (phone, otp, options = {}) => {
     // Clean phone number (strip +91 or non-digits)
     const cleanPhone = phone.toString().replace(/\D/g, '').slice(-10);
     if (!cleanPhone || cleanPhone.length !== 10) {
@@ -128,102 +128,13 @@ export const sendSMS = async (phone, otp) => {
         }
     }
 
-    // 2. FAST2SMS Quick OTP Route (Secondary Fallback)
-    const fast2smsKey = process.env.FAST2SMS_API_KEY;
-    if (fast2smsKey && fast2smsKey !== 'your_fast2sms_api_key_here') {
-        const trimmedKey = fast2smsKey.trim();
-
-        // Primary: Fast2SMS bulkV2 OTP route via POST JSON
-        try {
-            console.log(`[SMS-SERVICE] Dispatching via Fast2SMS Quick OTP route ('otp') to +91 ${cleanPhone}...`);
-            const payload = {
-                route: 'otp',
-                variables_values: cleanOtp,
-                numbers: cleanPhone,
-            };
-
-            const response = await axios.post(
-                'https://www.fast2sms.com/dev/bulkV2',
-                payload,
-                {
-                    headers: {
-                        authorization: trimmedKey,
-                        'Content-Type': 'application/json',
-                    },
-                    timeout: 8000,
-                }
-            );
-
-            if (response.data && (response.data.return === true || response.data.status_code === 200)) {
-                console.log(`[SMS-SERVICE] Fast2SMS Quick OTP delivered successfully to +91 ${cleanPhone}`);
-                return {
-                    success: true,
-                    message: 'OTP delivered to your mobile phone via SMS',
-                    provider: 'Fast2SMS (Quick OTP)',
-                    requestId: response.data.request_id,
-                };
-            }
-
-            const statusCode = response.data?.status_code;
-            lastStatusCode = statusCode;
-            lastError = response.data?.message || 'Fast2SMS OTP dispatch failed';
-        } catch (postErr) {
-            const errData = postErr.response?.data;
-            lastStatusCode = errData?.status_code || postErr.response?.status;
-            lastError = errData?.message || postErr.message;
-            console.warn(`[SMS-SERVICE] Fast2SMS POST OTP failed (HTTP ${postErr.response?.status}, Code: ${lastStatusCode}):`, errData || postErr.message);
-
-            // If POST failed with network/gateway issue, attempt GET fallback
-            if (lastStatusCode !== 413 && lastStatusCode !== 412) {
-                try {
-                    console.log(`[SMS-SERVICE] Attempting Fast2SMS Quick OTP GET fallback for +91 ${cleanPhone}...`);
-                    const getUrl = `https://www.fast2sms.com/dev/bulkV2?authorization=${encodeURIComponent(trimmedKey)}&route=otp&variables_values=${encodeURIComponent(cleanOtp)}&numbers=${cleanPhone}`;
-                    const getRes = await axios.get(getUrl, { timeout: 8000 });
-                    if (getRes.data && (getRes.data.return === true || getRes.data.status_code === 200)) {
-                        console.log(`[SMS-SERVICE] Fast2SMS Quick OTP GET fallback delivered successfully to +91 ${cleanPhone}`);
-                        return {
-                            success: true,
-                            message: 'OTP delivered to your mobile phone via SMS',
-                            provider: 'Fast2SMS (Quick OTP GET)',
-                            requestId: getRes.data.request_id,
-                        };
-                    }
-                } catch (getErr) {
-                    console.warn('[SMS-SERVICE] Fast2SMS GET fallback also failed:', getErr.response?.data || getErr.message);
-                }
-            }
-        }
-    }
-
-    // 2. 2FACTOR.IN (Backup gateway if configured)
-    const twoFactorKey = process.env.TWOFACTOR_API_KEY;
-    if (twoFactorKey && twoFactorKey !== 'your_2factor_api_key_here') {
-        try {
-            console.log(`[SMS-SERVICE] Attempting 2Factor.in backup for +91 ${cleanPhone}...`);
-            const url = `https://2factor.in/API/V1/${encodeURIComponent(twoFactorKey.trim())}/SMS/${cleanPhone}/${cleanOtp}/`;
-            const response = await axios.get(url, { timeout: 8000 });
-
-            if (response.data && response.data.Status === 'Success') {
-                console.log(`[SMS-SERVICE] 2Factor.in dispatch successful for +91 ${cleanPhone}`);
-                return {
-                    success: true,
-                    message: 'OTP delivered to your mobile phone via SMS',
-                    provider: '2Factor',
-                };
-            }
-        } catch (error) {
-            console.error('[SMS-SERVICE] 2Factor Error:', error.response?.data || error.message);
-        }
-    }
-
-    // 3. Fallback: Return actual status and clear reason
-    console.warn(`[SMS-SERVICE] SMS Gateway did not deliver to ${cleanPhone}. Reason: ${lastError || 'Gateway unavailable'}`);
+    // 2. Return status if APITxT did not deliver
+    console.warn(`[SMS-SERVICE] APITxT did not deliver to ${cleanPhone}. Reason: ${lastError || 'Gateway unavailable'}`);
     return {
         success: false,
-        simulated: true,
         statusCode: lastStatusCode,
         message: lastError || 'SMS gateway unavailable',
-        provider: 'Fast2SMS (Quick OTP)',
+        provider: 'APITxT',
     };
 };
 
