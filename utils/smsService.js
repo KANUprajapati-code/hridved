@@ -64,12 +64,53 @@ export const sendSMS = async (phone, otp) => {
     }
 
     const cleanOtp = String(otp).trim();
-    console.log(`[SMS-SERVICE] Initiating Fast2SMS Quick OTP (No DLT) for +91 ${cleanPhone}`);
+    console.log(`[SMS-SERVICE] Initiating SMS dispatch for +91 ${cleanPhone}`);
 
     let lastError = '';
     let lastStatusCode = null;
 
-    // 1. FAST2SMS Quick OTP Route (NO DLT REQUIRED)
+    // 1. APITxT Direct No-DLT Gateway (Primary)
+    const apitxtKey = process.env.APITXT_AUTH_KEY;
+    if (apitxtKey && apitxtKey.trim()) {
+        try {
+            console.log(`[SMS-SERVICE] Dispatching via APITxT (No DLT) to +91 ${cleanPhone}...`);
+            const params = new URLSearchParams();
+            params.append('authkey', apitxtKey.trim());
+            params.append('mobile', cleanPhone);
+            params.append('otp', cleanOtp);
+
+            const response = await axios.post(
+                'https://apitxt.com/api/sendOTP',
+                params.toString(),
+                {
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    timeout: 10000,
+                }
+            );
+
+            if (response.data && (response.data.status === 'success' || response.status === 200)) {
+                console.log(`[SMS-SERVICE] APITxT OTP delivered successfully to +91 ${cleanPhone}. Request ID:`, response.data.data?.request_id);
+                return {
+                    success: true,
+                    message: 'OTP delivered to your mobile phone via SMS',
+                    provider: 'APITxT (Instant SMS)',
+                    requestId: response.data.data?.request_id || response.data.request_id,
+                };
+            }
+
+            console.warn('[SMS-SERVICE] APITxT returned non-success:', response.data);
+            lastError = response.data?.message || 'APITxT delivery failed';
+        } catch (apiErr) {
+            const errData = apiErr.response?.data;
+            lastStatusCode = apiErr.response?.status;
+            lastError = errData?.message || apiErr.message;
+            console.warn(`[SMS-SERVICE] APITxT attempt failed (HTTP ${lastStatusCode}):`, errData || apiErr.message);
+        }
+    }
+
+    // 2. FAST2SMS Quick OTP Route (Secondary Fallback)
     const fast2smsKey = process.env.FAST2SMS_API_KEY;
     if (fast2smsKey && fast2smsKey !== 'your_fast2sms_api_key_here') {
         const trimmedKey = fast2smsKey.trim();
