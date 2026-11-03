@@ -70,7 +70,7 @@ export const sendSMS = async (phone, otp, options = {}) => {
     let lastStatusCode = null;
 
     // 1. APITxT Unified OTP Gateway (No-DLT - Supports SMS, WhatsApp, and Voice)
-    const apitxtKey = process.env.APITXT_AUTH_KEY;
+    const apitxtKey = process.env.APITXT_AUTH_KEY || 'vq-_LXTVY_DP02xMxmpukVoH6j0v1krEP4yjGZdoiog';
     if (apitxtKey && apitxtKey.trim()) {
         const channel = (options.channel || process.env.APITXT_CHANNEL || 'sms').toLowerCase();
         try {
@@ -155,54 +155,7 @@ export const sendTransactionalSMS = async (phone, messageText) => {
 
     console.log(`[SMS-SERVICE] Dispatching Transactional SMS to customer +91 ${cleanPhone}`);
 
-    // 1. FAST2SMS Quick SMS Route ('q')
-    const fast2smsKey = process.env.FAST2SMS_API_KEY;
-    if (fast2smsKey && fast2smsKey !== 'your_fast2sms_api_key_here') {
-        try {
-            console.log(`[SMS-SERVICE] Attempting Fast2SMS Quick SMS to +91 ${cleanPhone}...`);
-            const params = new URLSearchParams({
-                message: messageText,
-                language: 'english',
-                route: 'q',
-                numbers: cleanPhone,
-            });
-
-            const response = await axios.post(
-                'https://www.fast2sms.com/dev/bulkV2',
-                params.toString(),
-                {
-                    headers: {
-                        authorization: fast2smsKey.trim(),
-                        'Content-Type': 'application/x-www-form-urlencoded',
-                    },
-                    timeout: 8000,
-                }
-            );
-
-            if (response.data && (response.data.return === true || response.data.status_code === 200)) {
-                console.log(`[SMS-SERVICE] Fast2SMS order confirmation dispatch successful for +91 ${cleanPhone}`);
-                return {
-                    success: true,
-                    message: 'Order confirmation SMS dispatched to customer phone',
-                    provider: 'Fast2SMS',
-                };
-            } else if (response.data?.status_code === 413) {
-                console.warn('[SMS-SERVICE] Fast2SMS key is disabled or invalid. Verify active key in Fast2SMS dashboard (fast2sms.com).');
-                return {
-                    success: false,
-                    disabledKey: true,
-                    message: 'Fast2SMS key is disabled or requires verification in fast2sms.com dashboard',
-                    provider: 'Fast2SMS',
-                };
-            } else {
-                console.warn('[SMS-SERVICE] Fast2SMS response:', response.data);
-            }
-        } catch (error) {
-            console.error('[SMS-SERVICE] Fast2SMS Transactional Error:', error.response?.data || error.message);
-        }
-    }
-
-    // 2. TWILIO SMS (If configured)
+    // 1. TWILIO SMS (If configured)
     const twilioSid = process.env.TWILIO_ACCOUNT_SID;
     const twilioAuth = process.env.TWILIO_AUTH_TOKEN;
     const twilioFrom = process.env.TWILIO_PHONE_NUMBER;
