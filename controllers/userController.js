@@ -267,25 +267,26 @@ const sendOtp = async (req, res) => {
             console.error('Lead tracking error in sendOtp:', leadErr.message);
         }
 
-        const isDev = process.env.NODE_ENV !== 'production';
-
-        if (smsResult.success) {
-            return res.status(200).json({
-                success: true,
-                message: `OTP sent successfully to +91 ${cleanPhone}`,
-                provider: smsResult.provider,
-                requestId: smsResult.requestId,
+        if (!smsResult.success) {
+            console.warn(`[SMS-SERVICE] Live SMS failed to deliver to +91 ${cleanPhone}: ${smsResult.message}`);
+            // Check if rate limited
+            const isRateLimit = smsResult.statusCode === 429 || 
+                                (smsResult.message && (
+                                    smsResult.message.toLowerCase().includes('wait') || 
+                                    smsResult.message.toLowerCase().includes('rate limit') || 
+                                    smsResult.message.toLowerCase().includes('15 seconds')
+                                ));
+            return res.status(isRateLimit ? 429 : 400).json({
+                success: false,
+                message: smsResult.message || 'Failed to send OTP to mobile. Please try again in a few moments.',
             });
         }
 
-        // If live SMS gateway has rate limits or network issues:
-        console.warn(`[SMS-SERVICE] Live SMS notification: ${smsResult.message}. Providing resilient fallback.`);
         return res.status(200).json({
             success: true,
-            message: `OTP generated for +91 ${cleanPhone}`,
-            provider: smsResult.provider || 'APITxT',
-            devOtp: otpCode,
-            warning: smsResult.message,
+            message: `OTP sent successfully to +91 ${cleanPhone}`,
+            provider: smsResult.provider,
+            requestId: smsResult.requestId,
         });
     } catch (error) {
         console.error('sendOtp Error:', error);

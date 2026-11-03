@@ -103,7 +103,7 @@ export const sendSMS = async (phone, otp, options = {}) => {
                 }
             );
 
-            if (response.data && (response.data.status === 'success' || response.status === 200)) {
+            if (response.data && response.data.status === 'success') {
                 const reqId = response.data.data?.request_id || response.data.request_id || `APITXT-${Date.now()}`;
                 const cost = response.data.data?.cost;
                 console.log(`[SMS-SERVICE] APITxT ${channel.toUpperCase()} OTP delivered successfully to +91 ${cleanPhone}. Request ID: ${reqId}${cost !== undefined ? `, Cost: ₹${cost}` : ''}`);
