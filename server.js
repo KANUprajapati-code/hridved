@@ -115,6 +115,7 @@ import leadRoutes from './routes/leadRoutes.js';
 import websiteEventRoutes from './routes/websiteEventRoutes.js';
 import notificationRoutes from './routes/notificationRoutes.js';
 import razorpayRoutes from './routes/razorpayRoutes.js';
+import aiAssistantRoutes from './routes/aiAssistantRoutes.js';
 import { notFound, errorHandler } from './middleware/errorMiddleware.js';
 
 app.use('/api/users', userRoutes);
@@ -143,6 +144,7 @@ app.use('/api/config', configRoutes);
 app.use('/api/leads', leadRoutes);
 app.use('/api/website-events', websiteEventRoutes);
 app.use('/api/notifications', notificationRoutes);
+app.use('/api/assistant', aiAssistantRoutes);
 
 import path from 'path';
 import { fileURLToPath } from 'url';
