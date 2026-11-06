@@ -1,4 +1,3 @@
-
 import Content from '../models/Content.js';
 
 // @desc    Get all content
@@ -20,18 +19,21 @@ const getContent = async (req, res) => {
 // @access  Private/Admin
 const updateContent = async (req, res) => {
     const { section } = req.params;
-    const { title, subtitle, image, image1, image2, ctaText, ctaLink, items } = req.body;
+    const { title, subtitle, description, image, image1, image2, ctaText, ctaLink, isVisible, order, items } = req.body;
 
     let content = await Content.findOne({ section });
 
     if (content) {
         content.title = title !== undefined ? title : content.title;
         content.subtitle = subtitle !== undefined ? subtitle : content.subtitle;
+        content.description = description !== undefined ? description : content.description;
         content.image = image !== undefined ? image : content.image;
         content.image1 = image1 !== undefined ? image1 : content.image1;
         content.image2 = image2 !== undefined ? image2 : content.image2;
         content.ctaText = ctaText !== undefined ? ctaText : content.ctaText;
         content.ctaLink = ctaLink !== undefined ? ctaLink : content.ctaLink;
+        content.isVisible = isVisible !== undefined ? isVisible : content.isVisible;
+        content.order = order !== undefined ? order : content.order;
         content.items = items !== undefined ? items : content.items;
 
         const updatedContent = await content.save();
@@ -42,11 +44,14 @@ const updateContent = async (req, res) => {
             section,
             title,
             subtitle,
+            description,
             image,
             image1,
             image2,
             ctaText,
             ctaLink,
+            isVisible: isVisible !== undefined ? isVisible : true,
+            order: order !== undefined ? order : 0,
             items
         });
         const createdContent = await newContent.save();
