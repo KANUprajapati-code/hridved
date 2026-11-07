@@ -92,6 +92,7 @@ app.use(cors({
 import userRoutes from './routes/userRoutes.js';
 import productRoutes from './routes/productRoutes.js';
 import categoryRoutes from './routes/categoryRoutes.js';
+import concernRoutes from './routes/concernRoutes.js';
 import orderRoutes from './routes/orderRoutes.js';
 import cartRoutes from './routes/cartRoutes.js';
 import blogRoutes from './routes/blogRoutes.js';
@@ -122,6 +123,7 @@ app.use('/api/users', userRoutes);
 app.use('/api/auth', oauthRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/categories', categoryRoutes);
+app.use('/api/concerns', concernRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/cart', cartRoutes);
 app.use('/api/blogs', blogRoutes);

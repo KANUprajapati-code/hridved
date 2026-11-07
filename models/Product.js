@@ -57,6 +57,13 @@ const productSchema = mongoose.Schema({
         type: String,
         required: true,
     },
+    concern: {
+        type: String,
+        default: '',
+    },
+    concerns: [{
+        type: String,
+    }],
     benefits: {
         type: String,
     },
@@ -114,6 +121,8 @@ const productSchema = mongoose.Schema({
 
 // Indexes for fast querying & filtering on Shop page
 productSchema.index({ category: 1, createdAt: -1 });
+productSchema.index({ concern: 1 });
+productSchema.index({ concerns: 1 });
 productSchema.index({ price: 1 });
 productSchema.index({ createdAt: -1 });
 productSchema.index({ isFeatured: 1 });

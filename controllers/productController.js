@@ -24,6 +24,14 @@ const getProducts = async (req, res) => {
         keyword.category = { $in: categories };
     }
 
+    if (req.query.concern) {
+        const concerns = req.query.concern.split(',');
+        keyword.$or = [
+            { concerns: { $in: concerns } },
+            { concern: { $in: concerns } }
+        ];
+    }
+
     // Price filtering
     if (req.query.minPrice || req.query.maxPrice) {
         keyword.price = {};
@@ -64,7 +72,7 @@ const getProducts = async (req, res) => {
     const [count, products] = await Promise.all([
         Product.countDocuments(keyword),
         Product.find(keyword)
-            .select('name price mrp image isBestseller countInStock rating numReviews category isFeatured')
+            .select('name price mrp image isBestseller countInStock rating numReviews category concern concerns isFeatured')
             .sort(sort)
             .limit(pageSize)
             .skip(pageSize * (page - 1))
