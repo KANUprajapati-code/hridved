@@ -12,46 +12,64 @@ const getProducts = async (req, res) => {
     const pageSize = isBestseller ? 50 : (Number(req.query.pageSize) || 12);
     const page = Number(req.query.pageNumber) || 1;
 
-    const keyword = req.query.keyword ? {
-        name: {
-            $regex: req.query.keyword,
-            $options: 'i',
-        },
-    } : {};
+    const andConditions = [];
+
+    if (req.query.keyword) {
+        const queryTerm = req.query.keyword.trim();
+        const searchRegex = { $regex: queryTerm, $options: 'i' };
+        andConditions.push({
+            $or: [
+                { name: searchRegex },
+                { sku: searchRegex },
+                { category: searchRegex },
+                { concern: searchRegex },
+                { concerns: searchRegex },
+                { description: searchRegex },
+                { ingredients: searchRegex },
+                { keyIngredients: searchRegex },
+                { benefits: searchRegex }
+            ]
+        });
+    }
 
     if (req.query.category) {
         const categories = req.query.category.split(',');
-        keyword.category = { $in: categories };
+        andConditions.push({ category: { $in: categories } });
     }
 
     if (req.query.concern) {
         const concerns = req.query.concern.split(',');
-        keyword.$or = [
-            { concerns: { $in: concerns } },
-            { concern: { $in: concerns } }
-        ];
+        andConditions.push({
+            $or: [
+                { concerns: { $in: concerns } },
+                { concern: { $in: concerns } }
+            ]
+        });
     }
 
     // Price filtering
     if (req.query.minPrice || req.query.maxPrice) {
-        keyword.price = {};
-        if (req.query.minPrice) keyword.price.$gte = Number(req.query.minPrice);
-        if (req.query.maxPrice) keyword.price.$lte = Number(req.query.maxPrice);
+        const priceFilter = {};
+        if (req.query.minPrice) priceFilter.$gte = Number(req.query.minPrice);
+        if (req.query.maxPrice) priceFilter.$lte = Number(req.query.maxPrice);
+        andConditions.push({ price: priceFilter });
     }
 
     // In-Stock only filter
     if (req.query.inStock === 'true') {
-        keyword.countInStock = { $gt: 0 };
+        andConditions.push({ countInStock: { $gt: 0 } });
     }
 
     // Rating filter (min rating)
     if (req.query.rating) {
-        keyword.rating = { $gte: Number(req.query.rating) };
+        andConditions.push({ rating: { $gte: Number(req.query.rating) } });
     }
 
     if (isBestseller) {
-        keyword.isBestseller = true;
+        andConditions.push({ isBestseller: true });
     }
+
+    const keyword = andConditions.length > 0 ? { $and: andConditions } : {};
 
     // Sorting
     let sort = {};
@@ -225,6 +243,65 @@ const createProductReview = async (req, res) => {
     }
 };
 
+// @desc    Get autocomplete search suggestions
+// @route   GET /api/products/search/suggestions?q=...
+// @access  Public
+const getSearchSuggestions = async (req, res) => {
+    const q = req.query.q ? req.query.q.trim() : '';
+    if (!q || q.length < 2) {
+        return res.json({ products: [], categories: [], concerns: [], ingredients: [] });
+    }
+
+    const regex = new RegExp(q, 'i');
+
+    const [products, matchingCategories] = await Promise.all([
+        Product.find({
+            $or: [
+                { name: regex },
+                { sku: regex },
+                { category: regex },
+                { concern: regex },
+                { ingredients: regex },
+                { keyIngredients: regex }
+            ]
+        })
+        .select('name image price mrp packSize category sku countInStock rating numReviews')
+        .limit(6)
+        .lean(),
+
+        Product.distinct('category', { category: regex })
+    ]);
+
+    // Classical Ayurvedic ingredients catalog for suggestions
+    const approvedIngredients = [
+        '24K Swarna Bhasma',
+        'Medhya Brahmi',
+        'Shankhpushpi',
+        'Vacha',
+        'Desi Cow Ghee',
+        'A2 Bilona Ghee',
+        'Kashmiri Saffron (Kesar)',
+        'Rosemary Essential Oil',
+        'Kumkumadi Tailam',
+        'Raktachandana (Red Sandalwood)',
+        'Lodhra',
+        'Manjistha',
+        'Nirgundi (Joint Care)',
+        'Mahanarayan Tailam'
+    ];
+
+    const matchingIngredients = approvedIngredients.filter(ing => 
+        ing.toLowerCase().includes(q.toLowerCase())
+    ).slice(0, 4);
+
+    res.setHeader('Cache-Control', 'public, max-age=60, s-maxage=180, stale-while-revalidate=300');
+    res.json({
+        products,
+        categories: matchingCategories.slice(0, 4),
+        ingredients: matchingIngredients
+    });
+};
+
 export {
     getProducts,
     getProductById,
@@ -232,4 +309,5 @@ export {
     createProduct,
     updateProduct,
     createProductReview,
+    getSearchSuggestions,
 };

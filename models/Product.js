@@ -64,6 +64,17 @@ const productSchema = mongoose.Schema({
     concerns: [{
         type: String,
     }],
+    packSize: {
+        type: String,
+        default: '',
+    },
+    ingredients: {
+        type: String,
+        default: '',
+    },
+    keyIngredients: [{
+        type: String,
+    }],
     benefits: {
         type: String,
     },
@@ -123,6 +134,8 @@ const productSchema = mongoose.Schema({
 productSchema.index({ category: 1, createdAt: -1 });
 productSchema.index({ concern: 1 });
 productSchema.index({ concerns: 1 });
+productSchema.index({ sku: 1 });
+productSchema.index({ name: 'text', description: 'text', ingredients: 'text', sku: 'text' });
 productSchema.index({ price: 1 });
 productSchema.index({ createdAt: -1 });
 productSchema.index({ isFeatured: 1 });
