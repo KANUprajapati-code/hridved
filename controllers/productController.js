@@ -90,7 +90,7 @@ const getProducts = async (req, res) => {
     const [count, products] = await Promise.all([
         Product.countDocuments(keyword),
         Product.find(keyword)
-            .select('name price mrp image isBestseller countInStock rating numReviews category concern concerns isFeatured')
+            .select('name price mrp image isBestseller countInStock rating numReviews category concern concerns isFeatured packSize sku')
             .sort(sort)
             .limit(pageSize)
             .skip(pageSize * (page - 1))
@@ -165,15 +165,31 @@ const updateProduct = async (req, res) => {
         name,
         price,
         mrp,
+        sku,
+        packSize,
         description,
         image,
         images,
         category,
+        concern,
+        concerns,
         countInStock,
         isBestseller,
+        isFeatured,
         brand,
+        ingredients,
+        keyIngredients,
         benefits,
         howToUse,
+        precautions,
+        storage,
+        manufacturerDetails,
+        verifiedDocuments,
+        faqs,
+        claimStatus,
+        evidenceReference,
+        childAgeGuidance,
+        variants,
         gst,
         weight,
     } = req.body;
@@ -181,20 +197,36 @@ const updateProduct = async (req, res) => {
     const product = await Product.findById(req.params.id);
 
     if (product) {
-        product.name = name;
-        product.price = price;
-        product.mrp = mrp || product.mrp;
-        product.description = description;
-        product.image = image;
-        product.images = images || product.images;
-        product.category = category;
-        product.countInStock = countInStock;
-        product.isBestseller = isBestseller;
-        product.brand = brand || product.brand;
-        product.benefits = benefits || product.benefits;
-        product.howToUse = howToUse || product.howToUse;
-        product.gst = gst || product.gst;
-        product.weight = weight || product.weight;
+        if (name !== undefined) product.name = name;
+        if (price !== undefined) product.price = price;
+        if (mrp !== undefined) product.mrp = mrp;
+        if (sku !== undefined) product.sku = sku;
+        if (packSize !== undefined) product.packSize = packSize;
+        if (description !== undefined) product.description = description;
+        if (image !== undefined) product.image = image;
+        if (images !== undefined) product.images = images;
+        if (category !== undefined) product.category = category;
+        if (concern !== undefined) product.concern = concern;
+        if (concerns !== undefined) product.concerns = concerns;
+        if (countInStock !== undefined) product.countInStock = countInStock;
+        if (isBestseller !== undefined) product.isBestseller = isBestseller;
+        if (isFeatured !== undefined) product.isFeatured = isFeatured;
+        if (brand !== undefined) product.brand = brand;
+        if (ingredients !== undefined) product.ingredients = ingredients;
+        if (keyIngredients !== undefined) product.keyIngredients = keyIngredients;
+        if (benefits !== undefined) product.benefits = benefits;
+        if (howToUse !== undefined) product.howToUse = howToUse;
+        if (precautions !== undefined) product.precautions = precautions;
+        if (storage !== undefined) product.storage = storage;
+        if (manufacturerDetails !== undefined) product.manufacturerDetails = manufacturerDetails;
+        if (verifiedDocuments !== undefined) product.verifiedDocuments = verifiedDocuments;
+        if (faqs !== undefined) product.faqs = faqs;
+        if (claimStatus !== undefined) product.claimStatus = claimStatus;
+        if (evidenceReference !== undefined) product.evidenceReference = evidenceReference;
+        if (childAgeGuidance !== undefined) product.childAgeGuidance = childAgeGuidance;
+        if (variants !== undefined) product.variants = variants;
+        if (gst !== undefined) product.gst = gst;
+        if (weight !== undefined) product.weight = weight;
 
         const updatedProduct = await product.save();
         res.json(updatedProduct);

@@ -81,6 +81,46 @@ const productSchema = mongoose.Schema({
     howToUse: {
         type: String,
     },
+    precautions: {
+        type: String,
+        default: 'Consult a qualified Ayurvedic physician prior to use if pregnant, lactating, or on concurrent medical therapy. Keep out of reach of infants. Do not exceed suggested serving.',
+    },
+    storage: {
+        type: String,
+        default: 'Store in a cool, dry place away from direct sunlight and heat. Keep container tightly sealed after each use. Do not refrigerate.',
+    },
+    manufacturerDetails: {
+        name: { type: String, default: 'HRIDVED HERBALS PRIVATE LIMITED' },
+        address: { type: String, default: 'Vedic Wellness Campus, Gandhinagar, Gujarat - 382010, India' },
+        ayushLicense: { type: String, default: 'GA/AYU/108-A' },
+        fssaiLicense: { type: String, default: '10722031000456' },
+        countryOfOrigin: { type: String, default: 'India' },
+        customerCare: { type: String, default: '+91 79909 34095 | care@hridved.com' },
+    },
+    verifiedDocuments: [{
+        title: { type: String, required: true },
+        docType: { type: String, default: 'Certificate of Analysis (COA)' },
+        fileUrl: { type: String, default: '' },
+        verifiedDate: { type: String, default: '' },
+        labName: { type: String, default: 'NABL Accredited Analytical Testing Laboratory' },
+    }],
+    faqs: [{
+        question: { type: String, required: true },
+        answer: { type: String, required: true },
+    }],
+    claimStatus: {
+        type: String,
+        enum: ['classical_text', 'approved', 'under_review'],
+        default: 'classical_text',
+    },
+    evidenceReference: {
+        type: String,
+        default: 'Ayurvedic Pharmacopoeia of India (API) / Classical Samhitas (Sushruta Samhita & Charaka Samhita)',
+    },
+    childAgeGuidance: {
+        type: String,
+        default: '',
+    },
     price: {
         type: Number,
         required: true,
