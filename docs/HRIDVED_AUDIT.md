@@ -89,7 +89,7 @@ graph TD
     S0[Floating Elements: Toran Garland + Diyas + AI Vaidya Guide] --> S1
     S1[1. Hero Carousel Banner: content.hero / hero2 / hero3] --> S2
     S2[2. Brand Vedic Heritage & Trust Bar: 100% Organic, GMP, Eco-Shipping] --> S3
-    S3[3. Shubh Deepavali Ayurvedic Mahasale Banner & Countdown] --> S4
+    S3[3. Seasonal Promotional Banner & Offers] --> S4
     S4[4. Flagship Hero Product Spotlight: Suvarnaprashan Drops with Pack Selector] --> S5
     S5[5. Ayurvedic Categories Grid: Child Care, Hair, Skin, Ghee, Pain Relief] --> S6
     S6[6. Bestsellers Formulation Grid: Suvarnaprashan, Kumkumadi, Hair Oil, Ghee] --> S7

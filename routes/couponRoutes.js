@@ -2,6 +2,7 @@ import express from 'express';
 const router = express.Router();
 import {
     validateCoupon,
+    getActiveCoupons,
     getCoupons,
     createCoupon,
     updateCoupon,
@@ -9,6 +10,7 @@ import {
 } from '../controllers/couponController.js';
 import { protect, admin } from '../middleware/authMiddleware.js';
 
+router.get('/active', getActiveCoupons);
 router.post('/validate', validateCoupon);
 
 router.route('/')

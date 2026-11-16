@@ -12,22 +12,22 @@ function generateAyurvedicResponse(query, products = [], coupons = []) {
     const q = (query || '').toLowerCase().trim();
 
     // 1. GREETINGS & IDENTITY
-    const isGreeting = /^(hi|hello|namaste|namaskar|pranam|kem cho|ram ram|radhe radhe|good morning|good evening|hey)\b/i.test(q) || 
-                       /^(who are you|aap kaun ho|tum kaun ho|introduce|help|madad)\b/i.test(q);
+    const isGreeting = /^(hi|hello|namaste|namaskar|pranam|kem cho|ram ram|radhe radhe|good morning|good evening|hey)\b/i.test(q) ||
+        /^(who are you|aap kaun ho|tum kaun ho|introduce|help|madad)\b/i.test(q);
     if (isGreeting && q.split(' ').length <= 4) {
         return {
             status: 'grounded',
             category: 'general',
-            message: `🙏 **Namaste! Main Hridved ka AI Vaidya Guide hoon.**\n\nMain aapki authentic Ayurvedic swasthya yatra mein sahayata ke liye yahan hoon. Aap mujhse poochh sakte hain:\n• 🌿 **Formulations & Dosage:** Suvarnaprashan, Kumkumadi Tailam, A2 Ghee, Hair Oil, Joint Pain Roll On\n• 🧘‍♂️ **Ayurvedic Guidance:** Dosha balance (Vata, Pitta, Kapha), pachan, baal, twacha aur bacho ki immunity\n• 📦 **Store Support:** Order tracking, Express shipping, Cash on Delivery (COD), aur Diwali Discount offers!\n\nBataiye, aaj main aapki kya seva kar sakta hoon?`
+            message: `🙏 **Namaste! Main Hridved ka AI Vaidya Guide hoon.**\n\nMain aapki authentic Ayurvedic swasthya yatra mein sahayata ke liye yahan hoon. Aap mujhse poochh sakte hain:\n• 🌿 **Formulations & Dosage:** Suvarnaprashan, Kumkumadi Tailam, A2 Ghee, Hair Oil, Joint Pain Roll On\n• 🧘‍♂️ **Ayurvedic Guidance:** Dosha balance (Vata, Pitta, Kapha), pachan, baal, twacha aur bacho ki immunity\n• 📦 **Store Support:** Order tracking, Express shipping, Cash on Delivery (COD), aur Discount offers!\n\nBataiye, aaj main aapki kya seva kar sakta hoon?`
         };
     }
 
-    // 2. DIWALI OFFERS, DISCOUNTS & COUPONS
-    if (/(offer|discount|coupon|code|promo|voucher|chhoot|bachat|diwali|shubh|sale)/i.test(q)) {
+    // 2. STORE OFFERS, DISCOUNTS & COUPONS
+    if (/(offer|discount|coupon|code|promo|voucher|chhoot|bachat|sale)/i.test(q)) {
         return {
             status: 'grounded',
             category: 'offers',
-            message: `🪔 **Shubh Deepavali Ayurvedic Mahasale Offers:**\n\n1. **DIWALI25** — Sabhi Ayurvedic medicines aur oils par **FLAT 25% OFF**!\n2. **SHUBH100** — ₹999 se upar ke orders par **FLAT ₹100 Instant Discount**!\n3. 🎁 **Free Festive Gift:** ₹999 se upar ke har order par ek Ayurvedic Immunity Booster Gift bilkul FREE diya jata hai!\n4. 🚚 **Free Shipping:** ₹999+ ke sabhi prepaid & COD orders par Free Express Delivery uplabdh hai.\n\nCoupon code checkout page par "Apply Coupon" box mein daalein aur discount ka labh uthayein!`
+            message: `🌿 **Hridved Store Offers & Coupon Codes:**\n\n1. **VEDIC10** — Sabhi Ayurvedic medicines aur remedies par **10% OFF** (Min order ₹499)!\n2. **AYUSH15** — ₹1,499 se upar ke orders par **FLAT 15% OFF**!\n3. 🚚 **Free Express Shipping:** ₹999+ ke sabhi orders par Express Delivery bilkul FREE uplabdh hai.\n\nCart ya Checkout par apna coupon code enter karein aur discount ka labh uthayein!`
         };
     }
 
@@ -170,8 +170,8 @@ function generateAyurvedicResponse(query, products = [], coupons = []) {
     }
 
     // 9. GENERAL SEARCH MATCH OVER CATALOG PRODUCTS
-    const matchedProduct = products.find(p => 
-        q.includes((p.name || '').toLowerCase()) || 
+    const matchedProduct = products.find(p =>
+        q.includes((p.name || '').toLowerCase()) ||
         ((p.category || '').toLowerCase().length > 2 && q.includes(p.category.toLowerCase()))
     );
 
@@ -179,7 +179,7 @@ function generateAyurvedicResponse(query, products = [], coupons = []) {
         return {
             status: 'grounded',
             category: 'product',
-            message: `🌿 **${matchedProduct.name}**\n\n• **Price:** ₹${matchedProduct.price} ${matchedProduct.mrp ? `(MRP ₹${matchedProduct.mrp})` : ''}\n• **Category:** ${matchedProduct.category || 'Ayurvedic Wellness'}\n• **Description:** ${matchedProduct.description?.slice(0, 220) || 'Ayush certified authentic Ayurvedic formulation prepared with classical herbs.'}...\n\n👉 Aap isko direct website se order kar sakte hain. ₹999+ ke orders par Free Shipping aur Diwali Coupon **DIWALI25** ya **SHUBH100** uplabdh hai!`
+            message: `🌿 **${matchedProduct.name}**\n\n• **Price:** ₹${matchedProduct.price} ${matchedProduct.mrp ? `(MRP ₹${matchedProduct.mrp})` : ''}\n• **Category:** ${matchedProduct.category || 'Ayurvedic Wellness'}\n• **Description:** ${matchedProduct.description?.slice(0, 220) || 'Ayush certified authentic Ayurvedic formulation prepared with classical herbs.'}...\n\n👉 Aap isko direct website se order kar sakte hain. ₹999+ ke orders par Free Shipping aur Coupon **VEDIC10** (10% off) uplabdh hai!`
         };
     }
 
@@ -232,9 +232,8 @@ Your job is to answer user queries warmly and accurately in the user's language 
 HRIDVED STORE CONTEXT:
 - Shipping: Free Express Shipping on all orders above ₹999 across India. Metro delivery in 2-4 days, other cities in 3-6 days.
 - Payments: Cash on Delivery (COD) and Online Prepaid (UPI, Google Pay, PhonePe, Cards) both available.
-- Active Diwali Coupons:
-${couponSummary || '- DIWALI25 (25% off)\n- SHUBH100 (₹100 off on ₹999+)'}
-- Special Perk: Free Ayurvedic Immunity Gift with every order above ₹999!
+- Active Store Coupons:
+${couponSummary || '- VEDIC10 (10% off on ₹499+)\n- AYUSH15 (15% off on ₹1499+)'}
 - 7-Day Return & Replacement Policy for transit damages.
 - Support Phone/WhatsApp: +91 79909 34095 and +91 89804 11390.
 
@@ -272,7 +271,7 @@ RULES:
                 });
 
                 const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiApiKey.trim()}`;
-                
+
                 const response = await axios.post(
                     geminiUrl,
                     {

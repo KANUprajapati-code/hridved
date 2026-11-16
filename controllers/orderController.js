@@ -1,5 +1,7 @@
 
 import Order from '../models/Order.js';
+import Product from '../models/Product.js';
+import Coupon from '../models/Coupon.js';
 import AudienceLead from '../models/AudienceLead.js';
 import { createWayuvegaOrder, trackWayuvegaHistory, WAYUVEGA_STATUS_MAP } from '../utils/wayuvegaService.js';
 
@@ -11,33 +13,135 @@ const addOrderItems = async (req, res) => {
         orderItems,
         shippingAddress,
         paymentMethod,
-        itemsPrice,
-        taxPrice,
-        shippingPrice,
+        couponCode,
         codPrice,
-        totalPrice,
-        shippingProvider,
     } = req.body;
 
-    if (orderItems && orderItems.length === 0) {
+    if (!orderItems || orderItems.length === 0) {
         res.status(400);
         throw new Error('No order items');
-    } else {
-        const order = new Order({
-            orderItems,
-            user: req.user._id,
-            shippingAddress,
-            paymentMethod,
-            itemsPrice,
-            taxPrice,
-            shippingPrice,
-            codPrice,
-            discountAmount: req.body.discountAmount || 0,
-            totalPrice,
-            shippingProvider: 'Wayuvega',
-        });
+    }
 
-        const createdOrder = await order.save();
+    // Server-Side Recalculation: Never trust client totals!
+    const productIds = orderItems.map(item => item.product || item._id);
+    const dbProducts = await Product.find({ _id: { $in: productIds } });
+    const productMap = new Map();
+    dbProducts.forEach(p => productMap.set(String(p._id), p));
+
+    let verifiedItemsPrice = 0;
+    const verifiedOrderItems = [];
+
+    for (const item of orderItems) {
+        const pid = String(item.product || item._id);
+        const dbProduct = productMap.get(pid);
+
+        if (!dbProduct) {
+            res.status(400);
+            throw new Error(`Product ${item.name || pid} not found in catalogue`);
+        }
+
+        const qty = Math.max(1, parseInt(item.qty) || 1);
+
+        // Component inventory verification
+        if (dbProduct.countInStock < qty) {
+            res.status(400);
+            throw new Error(`Insufficient stock for "${dbProduct.name}". Only ${dbProduct.countInStock} available.`);
+        }
+
+        let unitPrice = Number(dbProduct.price) || 0;
+        if (item.selectedVariant) {
+            const vLower = String(item.selectedVariant).toLowerCase();
+            if (vLower.includes('2') || vLower.includes('twin') || vLower.includes('double')) {
+                unitPrice = Math.round(unitPrice * 0.9);
+            } else if (vLower.includes('3') || vLower.includes('triple') || vLower.includes('course')) {
+                unitPrice = Math.round(unitPrice * 0.85);
+            }
+        }
+
+        verifiedItemsPrice += unitPrice * qty;
+
+        verifiedOrderItems.push({
+            product: dbProduct._id,
+            name: dbProduct.name,
+            qty,
+            image: dbProduct.image,
+            price: unitPrice,
+            packSize: dbProduct.packSize || '',
+            sku: dbProduct.sku || '',
+            weight: dbProduct.weight || 0.5,
+            category: dbProduct.category || '',
+        });
+    }
+
+    // Coupon verification & application
+    let verifiedDiscount = 0;
+    const codeToValidate = couponCode || req.body.coupon?.code || req.body.appliedCoupon?.code;
+    let couponDoc = null;
+
+    if (codeToValidate) {
+        const cleanCode = String(codeToValidate).trim().toUpperCase();
+        couponDoc = await Coupon.findOne({ code: cleanCode, isActive: true });
+
+        if (couponDoc) {
+            const now = new Date();
+            const isValidDates = (!couponDoc.startDate || couponDoc.startDate <= now) &&
+                                 (!couponDoc.expiryDate || couponDoc.expiryDate >= now);
+            const isValidCap = !couponDoc.usageCap || couponDoc.usageCount < couponDoc.usageCap;
+            const meetsMin = verifiedItemsPrice >= (couponDoc.minOrderAmount || 0);
+
+            if (isValidDates && isValidCap && meetsMin) {
+                if (couponDoc.type === 'percentage') {
+                    let disc = Math.round((verifiedItemsPrice * couponDoc.discount) / 100);
+                    if (couponDoc.maxDiscount && couponDoc.maxDiscount > 0) {
+                        disc = Math.min(disc, couponDoc.maxDiscount);
+                    }
+                    verifiedDiscount = disc;
+                } else {
+                    verifiedDiscount = Math.min(verifiedItemsPrice, Number(couponDoc.discount) || 0);
+                }
+            }
+        }
+    } else if (req.body.discountAmount && Number(req.body.discountAmount) > 0) {
+        // Fallback for pre-validated discounts
+        verifiedDiscount = Math.min(verifiedItemsPrice, Number(req.body.discountAmount));
+    }
+
+    // Verified Shipping: Free shipping on orders >= ₹999 after discount
+    const postDiscountAmount = Math.max(0, verifiedItemsPrice - verifiedDiscount);
+    const verifiedShippingPrice = postDiscountAmount >= 999 ? 0 : 49;
+    const verifiedCodPrice = paymentMethod === 'COD' ? (Number(codPrice) || 0) : 0;
+    const verifiedTotalPrice = postDiscountAmount + verifiedShippingPrice + verifiedCodPrice;
+
+    const order = new Order({
+        orderItems: verifiedOrderItems,
+        user: req.user._id,
+        shippingAddress,
+        paymentMethod,
+        itemsPrice: verifiedItemsPrice,
+        taxPrice: 0,
+        shippingPrice: verifiedShippingPrice,
+        codPrice: verifiedCodPrice,
+        discountAmount: verifiedDiscount,
+        totalPrice: verifiedTotalPrice,
+        shippingProvider: 'Wayuvega',
+    });
+
+    const createdOrder = await order.save();
+
+    // Deduct stock atomically for purchased items
+    for (const item of verifiedOrderItems) {
+        await Product.findByIdAndUpdate(item.product, {
+            $inc: { countInStock: -item.qty }
+        });
+    }
+
+    // Record coupon usage if coupon applied
+    if (couponDoc && verifiedDiscount > 0) {
+        await Coupon.findByIdAndUpdate(couponDoc._id, {
+            $inc: { usageCount: 1 },
+            $push: { usedBy: { user: req.user._id, count: 1 } }
+        });
+    }
 
         // Directly Book Shipment with Wayuvega
         try {
@@ -213,32 +317,88 @@ const createWhatsAppOrder = async (req, res) => {
         const {
             orderItems,
             shippingAddress,
-            itemsPrice,
-            taxPrice,
-            shippingPrice,
-            totalPrice,
-            discountAmount,
+            couponCode,
             email,
             paymentMethod,
             codPrice
         } = req.body;
 
-        if (orderItems && orderItems.length === 0) {
+        if (!orderItems || orderItems.length === 0) {
             res.status(400);
             return res.json({ message: 'No order items' });
         }
 
+        // Server-Side Recalculation for WhatsApp orders
+        const productIds = orderItems.map(item => item.product || item._id);
+        const dbProducts = await Product.find({ _id: { $in: productIds } });
+        const productMap = new Map();
+        dbProducts.forEach(p => productMap.set(String(p._id), p));
+
+        let verifiedItemsPrice = 0;
+        const verifiedOrderItems = [];
+
+        for (const item of orderItems) {
+            const pid = String(item.product || item._id);
+            const dbProduct = productMap.get(pid);
+
+            if (!dbProduct) continue;
+
+            const qty = Math.max(1, parseInt(item.qty) || 1);
+            let unitPrice = Number(dbProduct.price) || 0;
+
+            if (item.selectedVariant) {
+                const vLower = String(item.selectedVariant).toLowerCase();
+                if (vLower.includes('2') || vLower.includes('twin') || vLower.includes('double')) {
+                    unitPrice = Math.round(unitPrice * 0.9);
+                } else if (vLower.includes('3') || vLower.includes('triple') || vLower.includes('course')) {
+                    unitPrice = Math.round(unitPrice * 0.85);
+                }
+            }
+
+            verifiedItemsPrice += unitPrice * qty;
+            verifiedOrderItems.push({
+                product: dbProduct._id,
+                name: dbProduct.name,
+                qty,
+                image: dbProduct.image,
+                price: unitPrice,
+                weight: dbProduct.weight || 0.5,
+                category: dbProduct.category || '',
+            });
+        }
+
+        let verifiedDiscount = 0;
+        const codeToValidate = couponCode || req.body.coupon?.code || req.body.appliedCoupon?.code;
+        if (codeToValidate) {
+            const coupon = await Coupon.findOne({ code: String(codeToValidate).trim().toUpperCase(), isActive: true });
+            if (coupon && verifiedItemsPrice >= (coupon.minOrderAmount || 0)) {
+                if (coupon.type === 'percentage') {
+                    verifiedDiscount = Math.round((verifiedItemsPrice * coupon.discount) / 100);
+                    if (coupon.maxDiscount) verifiedDiscount = Math.min(verifiedDiscount, coupon.maxDiscount);
+                } else {
+                    verifiedDiscount = Math.min(verifiedItemsPrice, Number(coupon.discount) || 0);
+                }
+            }
+        } else if (req.body.discountAmount) {
+            verifiedDiscount = Math.min(verifiedItemsPrice, Number(req.body.discountAmount) || 0);
+        }
+
+        const postDiscountAmount = Math.max(0, verifiedItemsPrice - verifiedDiscount);
+        const verifiedShippingPrice = postDiscountAmount >= 999 ? 0 : 49;
+        const verifiedCodPrice = paymentMethod && paymentMethod.includes('COD') ? (Number(codPrice) || 0) : 0;
+        const verifiedTotalPrice = postDiscountAmount + verifiedShippingPrice + verifiedCodPrice;
+
         const order = new Order({
             user: req.user?._id || undefined,
-            orderItems,
+            orderItems: verifiedOrderItems,
             shippingAddress,
             paymentMethod: paymentMethod || 'WhatsApp',
-            itemsPrice,
-            taxPrice,
-            shippingPrice,
-            codPrice: codPrice || 0,
-            totalPrice,
-            discountAmount,
+            itemsPrice: verifiedItemsPrice,
+            taxPrice: 0,
+            shippingPrice: verifiedShippingPrice,
+            codPrice: verifiedCodPrice,
+            totalPrice: verifiedTotalPrice,
+            discountAmount: verifiedDiscount,
             email: email || req.user?.email || '',
             orderSource: 'WhatsApp',
             isPaid: false,

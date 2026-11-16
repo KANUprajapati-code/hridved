@@ -6,10 +6,13 @@ import {
     removeFromCart,
     clearCart,
     mergeCart,
+    recalculateCart,
 } from '../controllers/cartController.js';
-import { protect } from '../middleware/authMiddleware.js';
+import { protect, optionalAuth } from '../middleware/authMiddleware.js';
 
 const router = express.Router();
+
+router.post('/recalculate', optionalAuth, recalculateCart);
 
 router.route('/')
     .get(protect, getCart)
