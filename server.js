@@ -2,6 +2,7 @@ import express from 'express';
 import dotenv from 'dotenv';
 import cookieParser from 'cookie-parser';
 import cors from 'cors';
+import mongoose from 'mongoose';
 import connectDB from './config/db.js';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
@@ -10,12 +11,63 @@ dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 5000;
-// Updated with Fast2SMS integration
 
-// Security Middleware
-app.use(helmet());
+// Trust proxy - critical for production behind Vercel / Cloudflare reverse proxy
+app.set('trust proxy', 1);
 
-// Simple Request Logger for Production Debugging
+/* =========================
+   ✅ HARDENED CORS CONFIG (Placed FIRST to handle preflights)
+========================= */
+
+const allowedOrigins = [
+  "http://localhost:5173",
+  "http://localhost:5174",
+  "https://www.hridved.in",
+  "https://hridved.in"
+];
+
+// Strict regex for Vercel preview/production subdomains
+const vercelRegex = /^https:\/\/hridved-.*\.vercel\.app$/;
+
+const corsOptions = {
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl)
+    if (!origin) return callback(null, true);
+
+    if (allowedOrigins.includes(origin) || vercelRegex.test(origin)) {
+      callback(null, true);
+    } else {
+      console.warn('CORS Blocked for origin:', origin);
+      callback(new Error("Not allowed by CORS"));
+    }
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: [
+    'Content-Type',
+    'Authorization',
+    'Origin',
+    'Accept',
+    'X-Requested-With',
+    'X-CSRF-Token',
+    'Idempotency-Key',
+    'idempotency-key',
+    'x-idempotency-key',
+    'Cache-Control',
+    'Pragma'
+  ],
+  exposedHeaders: ['set-cookie'],
+  optionsSuccessStatus: 200 // Legacy browser support for 204 preflight
+};
+
+app.use(cors(corsOptions));
+
+// Security Headers (configured not to interfere with cross-origin embeds)
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: "cross-origin" }
+}));
+
+// Request Logger for Production Debugging
 app.use((req, res, next) => {
   if (req.url === '/favicon.ico' || req.url === '/favicon.png') {
     return res.status(204).end();
@@ -24,18 +76,28 @@ app.use((req, res, next) => {
   next();
 });
 
-// Rate Limiting
+// Rate Limiting (Skips OPTIONS preflight to never break CORS)
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // Limit each IP to 100 requests per windowMs
-  standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
-  legacyHeaders: false, // Disable the `X-RateLimit-*` headers
-  message: 'Too many requests from this IP, please try again after 15 minutes',
+  max: 2000, // Reasonable capacity for modern e-commerce browsing
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: (req) => req.method === 'OPTIONS',
+  message: { message: 'Too many requests from this IP, please try again after 15 minutes' },
 });
 app.use('/api/', limiter);
 
-// Trust proxy - important for production (especially behind Vercel/VPS reverse proxy)
-app.set('trust proxy', 1);
+// Serverless DB Connection Check
+app.use(async (req, res, next) => {
+  if (mongoose.connection.readyState === 0) {
+    try {
+      await connectDB();
+    } catch (dbErr) {
+      console.error('Serverless auto DB connect warning:', dbErr.message);
+    }
+  }
+  next();
+});
 
 // Middleware
 app.use(express.json({
@@ -46,43 +108,6 @@ app.use(express.json({
 }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(cookieParser());
-
-/* =========================
-   ✅ HARDENED CORS CONFIG
-========================= */
-
-const allowedOrigins = [
-  "http://localhost:5173",
-  "http://localhost:5174",
-  "https://www.hridved.in",
-  "https://hridved.in"
-];
-
-// Strict regex for Vercel subdomains (replaces insecure origin.includes)
-const vercelRegex = /^https:\/\/hridved-.*\.vercel\.app$/;
-
-app.use(cors({
-  origin: function (origin, callback) {
-    // Allow requests with no origin (like mobile apps or curl)
-    if (!origin) return callback(null, true);
-
-    if (allowedOrigins.includes(origin) || vercelRegex.test(origin)) {
-      callback(null, true);
-    } else {
-      console.error('CORS Blocked for origin:', origin);
-      callback(new Error("Not allowed by CORS"));
-    }
-  },
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: [
-    'Content-Type',
-    'Authorization',
-    'Origin',
-    'Accept'
-  ],
-  exposedHeaders: ['set-cookie'],
-}));
 
 
 /* =========================
@@ -166,7 +191,7 @@ app.use(errorHandler);
 
 import { initTrackingCron } from './scripts/trackingCron.js';
 
-// Start Server
+// Start Server (Standalone vs Serverless)
 const startServer = async () => {
   try {
     await connectDB();
@@ -179,4 +204,10 @@ const startServer = async () => {
   }
 };
 
-startServer();
+if (!process.env.VERCEL) {
+  startServer();
+} else {
+  connectDB().catch(err => console.error('Initial Vercel DB connection:', err.message));
+}
+
+export default app;
