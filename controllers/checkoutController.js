@@ -23,7 +23,29 @@ export const createCheckoutOrder = async (req, res) => {
             shippingProvider = 'Vamaship',
             discountAmount = 0,
             email,
+            termsAccepted = true,
+            idempotencyKey,
+            appliedCoupon,
         } = req.body;
+
+        const effectiveIdempotencyKey = idempotencyKey || req.headers['idempotency-key'] || req.headers['x-idempotency-key'];
+
+        // Idempotency check: prevent duplicate orders on double click or network retry
+        if (effectiveIdempotencyKey) {
+            const existingOrder = await Order.findOne({ idempotencyKey: effectiveIdempotencyKey });
+            if (existingOrder) {
+                console.log(`[CHECKOUT] Idempotency match: Returning existing Order ${existingOrder._id}`);
+                return res.status(200).json({ success: true, data: existingOrder, isExisting: true });
+            }
+        }
+
+        // Terms acceptance guard
+        if (termsAccepted === false || termsAccepted === 'false') {
+            return res.status(400).json({
+                success: false,
+                message: 'Please review and accept Hridved Terms & Conditions and Privacy Policy to place your order.'
+            });
+        }
 
         const userId = req.user?._id ? req.user._id.toString() : 'Guest';
         console.log(`[CHECKOUT] Creating Order for User: ${userId}, Method: ${paymentMethod}, Total: ${totalPrice}`);
@@ -174,6 +196,12 @@ export const createCheckoutOrder = async (req, res) => {
             discountAmount: finalDiscount,
             totalPrice: finalTotalPrice,
             paymentMethod: paymentMethod,
+            paymentStatus: paymentMethod === 'COD' ? 'Pending' : 'Pending',
+            orderStatus: paymentMethod === 'COD' ? 'Confirmed' : 'Placed',
+            idempotencyKey: effectiveIdempotencyKey || `idem_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`,
+            termsAccepted: true,
+            guestCheckout: !req.user?._id,
+            appliedCoupon: appliedCoupon || undefined,
             shippingProvider: finalShippingProvider,
             shippingStatus: 'Processing',
             isPaid: false,

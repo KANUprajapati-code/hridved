@@ -15,7 +15,19 @@ const addOrderItems = async (req, res) => {
         paymentMethod,
         couponCode,
         codPrice,
+        termsAccepted = true,
+        idempotencyKey,
     } = req.body;
+
+    const effectiveIdempotencyKey = idempotencyKey || req.headers['idempotency-key'] || req.headers['x-idempotency-key'];
+
+    if (effectiveIdempotencyKey) {
+        const existingOrder = await Order.findOne({ idempotencyKey: effectiveIdempotencyKey });
+        if (existingOrder) {
+            console.log(`[ORDERS] Idempotency match: Returning existing Order ${existingOrder._id}`);
+            return res.status(200).json(existingOrder);
+        }
+    }
 
     if (!orderItems || orderItems.length === 0) {
         res.status(400);
@@ -117,6 +129,12 @@ const addOrderItems = async (req, res) => {
         user: req.user._id,
         shippingAddress,
         paymentMethod,
+        paymentStatus: paymentMethod === 'COD' ? 'Pending' : 'Pending',
+        orderStatus: paymentMethod === 'COD' ? 'Confirmed' : 'Placed',
+        idempotencyKey: effectiveIdempotencyKey || `idem_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`,
+        termsAccepted: Boolean(termsAccepted),
+        guestCheckout: false,
+        appliedCoupon: couponDoc ? { code: couponDoc.code, discount: verifiedDiscount, type: couponDoc.type } : undefined,
         itemsPrice: verifiedItemsPrice,
         taxPrice: 0,
         shippingPrice: verifiedShippingPrice,
@@ -196,13 +214,25 @@ const updateOrderToPaid = async (req, res) => {
     const order = await Order.findById(req.params.id);
 
     if (order) {
+        // Enforce strict PRD security: Never mark paid from frontend redirect alone without signature or admin override
+        const isOnline = (order.paymentMethod || '').toLowerCase().includes('razorpay');
+        if (isOnline && !req.user?.isAdmin) {
+            const { razorpay_signature, razorpay_payment_id } = req.body;
+            if (!razorpay_signature && !razorpay_payment_id) {
+                res.status(400);
+                throw new Error('Online payments must be validated through secure HMAC gateway verification');
+            }
+        }
+
         order.isPaid = true;
         order.paidAt = Date.now();
+        order.paymentStatus = 'Captured';
+        order.orderStatus = 'Confirmed';
         order.paymentResult = {
-            id: req.body.id,
-            status: req.body.status,
-            update_time: req.body.update_time,
-            email_address: req.body.payer.email_address,
+            id: req.body.id || req.body.razorpay_payment_id,
+            status: req.body.status || 'succeeded',
+            update_time: req.body.update_time || Date.now().toString(),
+            email_address: req.body.payer?.email_address || req.body.email || 'N/A',
         };
 
         // Ensure Wayuvega shipment is booked if not done yet

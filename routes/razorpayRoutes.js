@@ -122,6 +122,8 @@ router.post('/verify', async (req, res) => {
         if (!order.isPaid) {
             order.isPaid = true;
             order.paidAt = Date.now();
+            order.paymentStatus = 'Captured';
+            order.orderStatus = 'Confirmed';
             order.paymentResult = {
                 id: razorpay_payment_id,
                 status: 'succeeded',
@@ -238,6 +240,10 @@ router.post('/webhook', async (req, res) => {
             // 2. Update Order to Paid
             order.isPaid = true;
             order.paidAt = Date.now();
+            order.paymentStatus = 'Captured';
+            order.orderStatus = 'Confirmed';
+            order.webhookEvents = order.webhookEvents || [];
+            order.webhookEvents.push({ event, receivedAt: new Date(), payloadId: rzp_payment_id });
             order.paymentResult = {
                 id: rzp_payment_id,
                 status: 'succeeded',
@@ -251,7 +257,7 @@ router.post('/webhook', async (req, res) => {
                 order.waybill = `HRD${Math.floor(10000000 + Math.random() * 90000000)}`;
             }
             await order.save();
-            console.log(`[WEBHOOK] SUCCESS: Order ${order._id} successfully marked as PAID.`);
+            console.log(`[WEBHOOK] SUCCESS: Order ${order._id} successfully marked as PAID & Captured.`);
 
             // Atomically deduct inventory stock
             try {
@@ -290,13 +296,41 @@ router.post('/webhook', async (req, res) => {
                 console.warn(`[WEBHOOK] Wayuvega shipment trigger non-fatal error: ${shipmentErr.message}`);
             }
 
-            // 4. (Optional) Clear Cart if possible (Webhooks have no session, so we rely on finding cart by user ID)
-            try {
-                const Cart = (await import('../models/Cart.js')).default;
-                await Cart.deleteOne({ user: order.user._id });
-                console.log(`[WEBHOOK] Cart cleared for User ${order.user._id}`);
-            } catch (cartErr) {
-                console.warn(`[WEBHOOK] Cart clear error (ignorable): ${cartErr.message}`);
+            // 4. (Optional) Clear Cart if possible
+            if (order.user) {
+                try {
+                    const Cart = (await import('../models/Cart.js')).default;
+                    await Cart.deleteOne({ user: order.user._id });
+                    console.log(`[WEBHOOK] Cart cleared for User ${order.user._id}`);
+                } catch (cartErr) {
+                    console.warn(`[WEBHOOK] Cart clear error (ignorable): ${cartErr.message}`);
+                }
+            }
+        } else if (event === 'payment.failed') {
+            const entity = payload?.payment?.entity;
+            const rzp_order_id = entity?.order_id;
+            const rzp_payment_id = entity?.id;
+            if (rzp_order_id) {
+                const order = await Order.findOne({ razorpayOrderId: rzp_order_id });
+                if (order && !order.isPaid) {
+                    order.paymentStatus = 'Failed';
+                    order.webhookEvents = order.webhookEvents || [];
+                    order.webhookEvents.push({ event, receivedAt: new Date(), payloadId: rzp_payment_id });
+                    await order.save();
+                    console.log(`[WEBHOOK] Order ${order._id} marked as Payment Failed.`);
+                }
+            }
+        } else if (event === 'refund.created' || event === 'refund.processed') {
+            const entity = payload?.refund?.entity || payload?.payment?.entity;
+            const rzp_order_id = entity?.order_id;
+            const rzp_payment_id = entity?.payment_id || entity?.id;
+            const order = await Order.findOne({ $or: [{ razorpayOrderId: rzp_order_id }, { razorpayPaymentId: rzp_payment_id }] });
+            if (order) {
+                order.paymentStatus = 'Refunded';
+                order.webhookEvents = order.webhookEvents || [];
+                order.webhookEvents.push({ event, receivedAt: new Date(), payloadId: entity?.id });
+                await order.save();
+                console.log(`[WEBHOOK] Order ${order._id} marked as Refunded.`);
             }
         }
 

@@ -46,6 +46,41 @@ const orderSchema = mongoose.Schema({
         type: String,
         required: true,
     },
+    paymentStatus: {
+        type: String,
+        enum: ['Pending', 'Authorized', 'Captured', 'Failed', 'Refunded'],
+        default: 'Pending',
+    },
+    orderStatus: {
+        type: String,
+        enum: ['Placed', 'Confirmed', 'Processing', 'Packed', 'Shipped', 'Out For Delivery', 'Delivered', 'Cancelled', 'RTO'],
+        default: 'Placed',
+    },
+    idempotencyKey: {
+        type: String,
+        index: true,
+        sparse: true,
+    },
+    termsAccepted: {
+        type: Boolean,
+        default: true,
+    },
+    guestCheckout: {
+        type: Boolean,
+        default: false,
+    },
+    appliedCoupon: {
+        code: { type: String },
+        discount: { type: Number, default: 0 },
+        type: { type: String },
+    },
+    webhookEvents: [
+        {
+            event: { type: String },
+            receivedAt: { type: Date, default: Date.now },
+            payloadId: { type: String },
+        }
+    ],
     paymentResult: {
         id: { type: String },
         status: { type: String },
