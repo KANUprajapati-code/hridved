@@ -16,14 +16,21 @@ const authUser = async (req, res) => {
     const user = await User.findOne({ email });
 
     if (user && (await user.matchPassword(password))) {
-        setAuthCookie(res, user._id);
+        const token = setAuthCookie(res, user._id);
 
         res.json({
             _id: user._id,
             name: user.name,
             email: user.email,
+            phone: user.phone,
             isAdmin: user.isAdmin,
-            token: setAuthCookie(res, user._id),
+            token,
+            communicationPreferences: user.communicationPreferences || {
+                transactional: true,
+                marketingEmail: false,
+                marketingWhatsApp: false,
+                marketingSms: false,
+            },
         });
     } else {
         res.status(401).json({ message: 'Invalid email or password' });
@@ -50,13 +57,20 @@ const registerUser = async (req, res) => {
     });
 
     if (user) {
-        setAuthCookie(res, user._id);
+        const token = setAuthCookie(res, user._id);
         res.status(201).json({
             _id: user._id,
             name: user.name,
             email: user.email,
+            phone: user.phone,
             isAdmin: user.isAdmin,
-            token: setAuthCookie(res, user._id),
+            token,
+            communicationPreferences: user.communicationPreferences || {
+                transactional: true,
+                marketingEmail: false,
+                marketingWhatsApp: false,
+                marketingSms: false,
+            },
         });
     } else {
         res.status(400).json({ message: 'Invalid user data' });
@@ -77,7 +91,7 @@ const logoutUser = (req, res) => {
 // @access  Private
 const getUserProfile = async (req, res) => {
     console.log(`[AUTH] Profile requested for user: ${req.user?._id}`);
-    const user = await User.findById(req.user._id);
+    const user = await User.findById(req.user._id).populate('wishlist', 'name price image mrp countInStock rating numReviews category');
 
     if (user) {
         res.json({
@@ -92,6 +106,13 @@ const getUserProfile = async (req, res) => {
             postalCode: user.postalCode,
             country: user.country,
             addresses: user.addresses || [],
+            wishlist: user.wishlist || [],
+            communicationPreferences: user.communicationPreferences || {
+                transactional: true,
+                marketingEmail: false,
+                marketingWhatsApp: false,
+                marketingSms: false,
+            },
         });
     } else {
         res.status(404).json({ message: 'User not found' });
@@ -119,6 +140,18 @@ const updateUserProfile = async (req, res) => {
             user.addresses = req.body.addresses;
         }
 
+        // Support for communication preferences (Prompt 10)
+        if (req.body.communicationPreferences) {
+            user.communicationPreferences = {
+                transactional: true, // Always true for critical order tracking & security
+                marketingEmail: Boolean(req.body.communicationPreferences.marketingEmail),
+                marketingWhatsApp: Boolean(req.body.communicationPreferences.marketingWhatsApp),
+                marketingSms: Boolean(req.body.communicationPreferences.marketingSms),
+                consentTimestamp: new Date(),
+                consentIp: req.ip || req.headers['x-forwarded-for'] || '',
+            };
+        }
+
         if (req.body.password) {
             user.password = req.body.password;
         }
@@ -137,6 +170,8 @@ const updateUserProfile = async (req, res) => {
             postalCode: updatedUser.postalCode,
             country: updatedUser.country,
             addresses: updatedUser.addresses || [],
+            wishlist: updatedUser.wishlist || [],
+            communicationPreferences: updatedUser.communicationPreferences,
         });
     } else {
         res.status(404).json({ message: 'User not found' });
@@ -389,6 +424,12 @@ const verifyOtp = async (req, res) => {
             phone: user.phone,
             isAdmin: user.isAdmin,
             token,
+            communicationPreferences: user.communicationPreferences || {
+                transactional: true,
+                marketingEmail: false,
+                marketingWhatsApp: false,
+                marketingSms: false,
+            },
         });
     } catch (error) {
         console.error('verifyOtp Error:', error);
@@ -458,6 +499,12 @@ const firebasePhoneLogin = async (req, res) => {
             phone: user.phone,
             isAdmin: user.isAdmin,
             token,
+            communicationPreferences: user.communicationPreferences || {
+                transactional: true,
+                marketingEmail: false,
+                marketingWhatsApp: false,
+                marketingSms: false,
+            },
         });
     } catch (error) {
         console.error('firebasePhoneLogin Error:', error);

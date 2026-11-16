@@ -74,6 +74,14 @@ const userSchema = mongoose.Schema({
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Product',
     }],
+    communicationPreferences: {
+        transactional: { type: Boolean, default: true },
+        marketingEmail: { type: Boolean, default: false },
+        marketingWhatsApp: { type: Boolean, default: false },
+        marketingSms: { type: Boolean, default: false },
+        consentTimestamp: { type: Date },
+        consentIp: { type: String },
+    },
 }, {
     timestamps: true,
 });
