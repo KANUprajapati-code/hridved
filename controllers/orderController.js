@@ -161,33 +161,9 @@ const addOrderItems = async (req, res) => {
         });
     }
 
-        // Directly Book Shipment with Wayuvega
-        try {
-            console.log(`[ORDERS] Directly booking shipment with Wayuvega for Order ${createdOrder._id}...`);
-            const booking = await createWayuvegaOrder(createdOrder);
-            if (booking && booking.success) {
-                createdOrder.waybill = booking.waybill;
-                createdOrder.wayuvegaOrderId = booking.shipmentOrderId || null;
-                createdOrder.wayuvegaReference = booking.orderReferenceNumber || null;
-                createdOrder.courierName = booking.courierName || 'DELHIVERY SURFACE';
-                createdOrder.shippingProvider = 'Wayuvega';
-                createdOrder.wayuvegaStatusCode = '30';
-                createdOrder.wayuvegaCurrentStep = 0;
-                createdOrder.wayuvegaLastLocation = 'Hridved Fulfillment Facility, Bayad';
-                if (booking.labelUrl) {
-                    createdOrder.shippingLabelUrl = booking.labelUrl;
-                }
-                console.log(`[ORDERS] Wayuvega booking confirmed for Order ${createdOrder._id}, AWB: ${createdOrder.waybill}`);
-            } else {
-                createdOrder.waybill = createdOrder.waybill || `WAYU${Math.floor(1000000000 + Math.random() * 9000000000)}`;
-            }
-            await createdOrder.save();
-        } catch (wvErr) {
-            console.error('[ORDERS] Wayuvega booking error:', wvErr.message);
-        }
-
-        res.status(201).json(createdOrder);
-    };
+    // Courier booking is deferred until order is confirmed/paid or dispatched by admin.
+    res.status(201).json(createdOrder);
+};
 
 // @desc    Get order by ID
 // @route   GET /api/orders/:id
@@ -326,7 +302,16 @@ const updateOrderTracking = async (req, res) => {
 // @route   GET /api/orders/myorders
 // @access  Private
 const getMyOrders = async (req, res) => {
-    const orders = await Order.find({ user: req.user._id });
+    // Return all confirmed orders, paid orders, COD orders, or non-drafts (exclude abandoned online payment checkouts)
+    const orders = await Order.find({
+        user: req.user._id,
+        $or: [
+            { isPaid: true },
+            { paymentMethod: 'COD' },
+            { orderSource: 'WhatsApp' },
+            { orderStatus: { $in: ['Confirmed', 'Processing', 'Dispatched', 'Shipped', 'Delivered'] } }
+        ]
+    }).sort({ createdAt: -1 });
     res.json(orders);
 };
 

@@ -34,6 +34,18 @@ export const createCheckoutOrder = async (req, res) => {
         if (effectiveIdempotencyKey) {
             const existingOrder = await Order.findOne({ idempotencyKey: effectiveIdempotencyKey });
             if (existingOrder) {
+                // If existing order is unpaid and payment method has changed (e.g. from Razorpay to COD), update it
+                if (!existingOrder.isPaid) {
+                    if (paymentMethod && paymentMethod !== existingOrder.paymentMethod) {
+                        existingOrder.paymentMethod = paymentMethod;
+                        existingOrder.paymentStatus = 'Pending';
+                        existingOrder.orderStatus = paymentMethod === 'COD' ? 'Confirmed' : 'Placed';
+                    }
+                    if (totalPrice) existingOrder.totalPrice = Number(totalPrice);
+                    if (shippingPrice !== undefined) existingOrder.shippingPrice = Number(shippingPrice);
+                    if (discountAmount !== undefined) existingOrder.discountAmount = Number(discountAmount);
+                    await existingOrder.save();
+                }
                 console.log(`[CHECKOUT] Idempotency match: Returning existing Order ${existingOrder._id}`);
                 return res.status(200).json({ success: true, data: existingOrder, isExisting: true });
             }
@@ -178,7 +190,7 @@ export const createCheckoutOrder = async (req, res) => {
         const finalItemsPrice = Number(itemsPrice) || cleanOrderItems.reduce((acc, it) => acc + (it.price * it.qty), 0);
         const finalShippingPrice = Number(shippingPrice) || 0;
         const finalDiscount = Number(discountAmount) || 0;
-        const finalTotalPrice = totalPrice ? Number(totalPrice) : Math.max(0, finalItemsPrice + calculatedTaxPrice + finalShippingPrice + codPrice - finalDiscount);
+        const finalTotalPrice = totalPrice ? Number(totalPrice) : Math.max(0, finalItemsPrice + finalShippingPrice + codPrice - finalDiscount);
 
         // 6. Create Order
         const order = new Order({
@@ -209,31 +221,10 @@ export const createCheckoutOrder = async (req, res) => {
 
         const createdOrder = await order.save();
 
-        // 7. Directly Book Shipment with Wayuvega
-        try {
-            console.log(`[CHECKOUT] Directly creating shipment on Wayuvega for Order ${createdOrder._id}...`);
-            const booking = await createWayuvegaOrder(createdOrder);
-            if (booking && booking.success) {
-                createdOrder.waybill = booking.waybill;
-                createdOrder.wayuvegaOrderId = booking.shipmentOrderId || null;
-                createdOrder.wayuvegaReference = booking.orderReferenceNumber || null;
-                createdOrder.courierName = booking.courierName || 'DELHIVERY SURFACE';
-                createdOrder.shippingProvider = 'Wayuvega';
-                createdOrder.wayuvegaStatusCode = '30';
-                createdOrder.wayuvegaCurrentStep = 0;
-                createdOrder.wayuvegaLastLocation = 'Hridved Fulfillment Facility, Bayad';
-                if (booking.labelUrl) {
-                    createdOrder.shippingLabelUrl = booking.labelUrl;
-                }
-                console.log(`[CHECKOUT] Wayuvega booking confirmed for Order ${createdOrder._id}, AWB: ${createdOrder.waybill}`);
-            } else {
-                createdOrder.waybill = createdOrder.waybill || `HRD${Math.floor(10000000 + Math.random() * 90000000)}`;
-            }
-        } catch (wvErr) {
-            console.error('[CHECKOUT] Wayuvega direct booking error:', wvErr.message);
-            createdOrder.waybill = createdOrder.waybill || `HRD${Math.floor(10000000 + Math.random() * 90000000)}`;
-        }
-        await createdOrder.save();
+        // Note: Courier / Waybill generation is intentionally NOT performed on draft checkout creation.
+        // For Online Payments (Razorpay), courier booking is triggered ONLY after payment is captured & verified.
+        // This prevents phantom/auto-generated couriers when users drop off, close the tab, or abandon checkout.
+        // For COD, the order is registered with 'Processing' status and courier can be dispatched upon verification.
 
         // 8. Handle Post-Creation Actions for COD
         if (paymentMethod === 'COD') {
