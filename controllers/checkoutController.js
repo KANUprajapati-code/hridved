@@ -26,6 +26,7 @@ export const createCheckoutOrder = async (req, res) => {
             termsAccepted = true,
             idempotencyKey,
             appliedCoupon,
+            marketingAttribution,
         } = req.body;
 
         const effectiveIdempotencyKey = idempotencyKey || req.headers['idempotency-key'] || req.headers['x-idempotency-key'];
@@ -192,6 +193,22 @@ export const createCheckoutOrder = async (req, res) => {
         const finalDiscount = Number(discountAmount) || 0;
         const finalTotalPrice = totalPrice ? Number(totalPrice) : Math.max(0, finalItemsPrice + finalShippingPrice + codPrice - finalDiscount);
 
+        let attribution = undefined;
+        if (marketingAttribution && typeof marketingAttribution === 'object') {
+            attribution = {
+                utmSource: String(marketingAttribution.utm_source || marketingAttribution.utmSource || '').slice(0, 100),
+                utmMedium: String(marketingAttribution.utm_medium || marketingAttribution.utmMedium || '').slice(0, 100),
+                utmCampaign: String(marketingAttribution.utm_campaign || marketingAttribution.utmCampaign || '').slice(0, 100),
+                utmTerm: String(marketingAttribution.utm_term || marketingAttribution.utmTerm || '').slice(0, 100),
+                utmContent: String(marketingAttribution.utm_content || marketingAttribution.utmContent || '').slice(0, 100),
+                gclid: String(marketingAttribution.gclid || '').slice(0, 150),
+                fbclid: String(marketingAttribution.fbclid || '').slice(0, 150),
+                landingPage: String(marketingAttribution.landing_page || marketingAttribution.landingPage || '').slice(0, 180),
+                referrer: String(marketingAttribution.referrer || '').slice(0, 200),
+                capturedAt: marketingAttribution.captured_at ? new Date(marketingAttribution.captured_at) : new Date(),
+            };
+        }
+
         // 6. Create Order
         const order = new Order({
             user: req.user?._id || undefined,
@@ -214,6 +231,7 @@ export const createCheckoutOrder = async (req, res) => {
             termsAccepted: true,
             guestCheckout: !req.user?._id,
             appliedCoupon: appliedCoupon || undefined,
+            marketingAttribution: attribution,
             shippingProvider: finalShippingProvider,
             shippingStatus: 'Processing',
             isPaid: false,

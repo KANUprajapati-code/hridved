@@ -74,6 +74,18 @@ const orderSchema = mongoose.Schema({
         discount: { type: Number, default: 0 },
         type: { type: String },
     },
+    marketingAttribution: {
+        utmSource: { type: String, default: '' },
+        utmMedium: { type: String, default: '' },
+        utmCampaign: { type: String, default: '' },
+        utmTerm: { type: String, default: '' },
+        utmContent: { type: String, default: '' },
+        gclid: { type: String, default: '' },
+        fbclid: { type: String, default: '' },
+        landingPage: { type: String, default: '' },
+        referrer: { type: String, default: '' },
+        capturedAt: { type: Date },
+    },
     webhookEvents: [
         {
             event: { type: String },

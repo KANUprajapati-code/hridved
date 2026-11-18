@@ -36,6 +36,11 @@ const websiteEventSchema = new mongoose.Schema({
   productId: { type: mongoose.Schema.Types.ObjectId, ref: 'Product' },
   orderId: { type: mongoose.Schema.Types.ObjectId, ref: 'Order' },
   consentVersion: { type: String, required: true, maxlength: 30 },
+  utmSource: { type: String, maxlength: 100 },
+  utmMedium: { type: String, maxlength: 100 },
+  utmCampaign: { type: String, maxlength: 100 },
+  gclid: { type: String, maxlength: 150 },
+  fbclid: { type: String, maxlength: 150 },
 }, { timestamps: true });
 
 websiteEventSchema.index({ createdAt: 1 }, { expireAfterSeconds: 60 * 60 * 24 * 90 });

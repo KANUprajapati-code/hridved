@@ -31,7 +31,7 @@ const allowedEvents = new Set([
 ]);
 
 export const collectWebsiteEvent = asyncHandler(async (req, res) => {
-  const { eventType, sessionId, path, productId, orderId, searchQuery, consentVersion } = req.body || {};
+  const { eventType, sessionId, path, productId, orderId, searchQuery, consentVersion, utmSource, utmMedium, utmCampaign, gclid, fbclid } = req.body || {};
   
   if (!eventType || typeof eventType !== 'string') {
     return res.status(200).json({ success: true, ignored: true });
@@ -65,6 +65,11 @@ export const collectWebsiteEvent = asyncHandler(async (req, res) => {
   if (cleanEventType === 'search' && typeof searchQuery === 'string') {
     record.searchQuery = searchQuery.slice(0, 100).trim();
   }
+  if (utmSource && typeof utmSource === 'string') record.utmSource = utmSource.slice(0, 100).trim();
+  if (utmMedium && typeof utmMedium === 'string') record.utmMedium = utmMedium.slice(0, 100).trim();
+  if (utmCampaign && typeof utmCampaign === 'string') record.utmCampaign = utmCampaign.slice(0, 100).trim();
+  if (gclid && typeof gclid === 'string') record.gclid = gclid.slice(0, 150).trim();
+  if (fbclid && typeof fbclid === 'string') record.fbclid = fbclid.slice(0, 150).trim();
 
   try {
     await WebsiteEvent.create(record);

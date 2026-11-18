@@ -17,6 +17,7 @@ const addOrderItems = async (req, res) => {
         codPrice,
         termsAccepted = true,
         idempotencyKey,
+        marketingAttribution,
     } = req.body;
 
     const effectiveIdempotencyKey = idempotencyKey || req.headers['idempotency-key'] || req.headers['x-idempotency-key'];
@@ -124,6 +125,22 @@ const addOrderItems = async (req, res) => {
     const verifiedCodPrice = paymentMethod === 'COD' ? (Number(codPrice) || 0) : 0;
     const verifiedTotalPrice = postDiscountAmount + verifiedShippingPrice + verifiedCodPrice;
 
+    let attribution = undefined;
+    if (marketingAttribution && typeof marketingAttribution === 'object') {
+        attribution = {
+            utmSource: String(marketingAttribution.utm_source || marketingAttribution.utmSource || '').slice(0, 100),
+            utmMedium: String(marketingAttribution.utm_medium || marketingAttribution.utmMedium || '').slice(0, 100),
+            utmCampaign: String(marketingAttribution.utm_campaign || marketingAttribution.utmCampaign || '').slice(0, 100),
+            utmTerm: String(marketingAttribution.utm_term || marketingAttribution.utmTerm || '').slice(0, 100),
+            utmContent: String(marketingAttribution.utm_content || marketingAttribution.utmContent || '').slice(0, 100),
+            gclid: String(marketingAttribution.gclid || '').slice(0, 150),
+            fbclid: String(marketingAttribution.fbclid || '').slice(0, 150),
+            landingPage: String(marketingAttribution.landing_page || marketingAttribution.landingPage || '').slice(0, 180),
+            referrer: String(marketingAttribution.referrer || '').slice(0, 200),
+            capturedAt: marketingAttribution.captured_at ? new Date(marketingAttribution.captured_at) : new Date(),
+        };
+    }
+
     const order = new Order({
         orderItems: verifiedOrderItems,
         user: req.user._id,
@@ -135,6 +152,7 @@ const addOrderItems = async (req, res) => {
         termsAccepted: Boolean(termsAccepted),
         guestCheckout: false,
         appliedCoupon: couponDoc ? { code: couponDoc.code, discount: verifiedDiscount, type: couponDoc.type } : undefined,
+        marketingAttribution: attribution,
         itemsPrice: verifiedItemsPrice,
         taxPrice: 0,
         shippingPrice: verifiedShippingPrice,
@@ -334,7 +352,8 @@ const createWhatsAppOrder = async (req, res) => {
             couponCode,
             email,
             paymentMethod,
-            codPrice
+            codPrice,
+            marketingAttribution
         } = req.body;
 
         if (!orderItems || orderItems.length === 0) {
@@ -402,6 +421,22 @@ const createWhatsAppOrder = async (req, res) => {
         const verifiedCodPrice = paymentMethod && paymentMethod.includes('COD') ? (Number(codPrice) || 0) : 0;
         const verifiedTotalPrice = postDiscountAmount + verifiedShippingPrice + verifiedCodPrice;
 
+        let attribution = undefined;
+        if (marketingAttribution && typeof marketingAttribution === 'object') {
+            attribution = {
+                utmSource: String(marketingAttribution.utm_source || marketingAttribution.utmSource || '').slice(0, 100),
+                utmMedium: String(marketingAttribution.utm_medium || marketingAttribution.utmMedium || '').slice(0, 100),
+                utmCampaign: String(marketingAttribution.utm_campaign || marketingAttribution.utmCampaign || '').slice(0, 100),
+                utmTerm: String(marketingAttribution.utm_term || marketingAttribution.utmTerm || '').slice(0, 100),
+                utmContent: String(marketingAttribution.utm_content || marketingAttribution.utmContent || '').slice(0, 100),
+                gclid: String(marketingAttribution.gclid || '').slice(0, 150),
+                fbclid: String(marketingAttribution.fbclid || '').slice(0, 150),
+                landingPage: String(marketingAttribution.landing_page || marketingAttribution.landingPage || '').slice(0, 180),
+                referrer: String(marketingAttribution.referrer || '').slice(0, 200),
+                capturedAt: marketingAttribution.captured_at ? new Date(marketingAttribution.captured_at) : new Date(),
+            };
+        }
+
         const order = new Order({
             user: req.user?._id || undefined,
             orderItems: verifiedOrderItems,
@@ -415,6 +450,7 @@ const createWhatsAppOrder = async (req, res) => {
             discountAmount: verifiedDiscount,
             email: email || req.user?.email || '',
             orderSource: 'WhatsApp',
+            marketingAttribution: attribution,
             isPaid: false,
         });
 

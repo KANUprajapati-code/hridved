@@ -77,3 +77,21 @@ export const updateShippingConfig = async (req, res) => {
         res.status(500).json({ success: false, message: error.message });
     }
 };
+
+// @desc    Get performance marketing and analytics configuration
+// @route   GET /api/config/marketing
+// @access  Public
+export const getMarketingConfig = async (req, res) => {
+    try {
+        res.json({
+            success: true,
+            data: {
+                googleAnalyticsId: process.env.GA_MEASUREMENT_ID || 'G-VJ0G98SBVZ',
+                metaPixelId: process.env.META_PIXEL_ID || '',
+                googleTagManagerId: process.env.GTM_ID || '',
+            }
+        });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
