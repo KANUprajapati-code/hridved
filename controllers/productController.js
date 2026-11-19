@@ -90,7 +90,7 @@ const getProducts = async (req, res) => {
     const [count, products] = await Promise.all([
         Product.countDocuments(keyword),
         Product.find(keyword)
-            .select('name price mrp image isBestseller countInStock rating numReviews category concern concerns isFeatured packSize sku')
+            .select('name price mrp image isBestseller countInStock rating numReviews category concern concerns isFeatured packSize sku variants')
             .sort(sort)
             .limit(pageSize)
             .skip(pageSize * (page - 1))

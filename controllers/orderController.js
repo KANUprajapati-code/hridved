@@ -62,16 +62,53 @@ const addOrderItems = async (req, res) => {
         }
 
         let unitPrice = Number(dbProduct.price) || 0;
-        if (item.selectedVariant) {
-            const vLower = String(item.selectedVariant).toLowerCase();
-            if (vLower.includes('2') || vLower.includes('twin') || vLower.includes('double')) {
-                unitPrice = Math.round(unitPrice * 0.9);
-            } else if (vLower.includes('3') || vLower.includes('triple') || vLower.includes('course')) {
-                unitPrice = Math.round(unitPrice * 0.85);
+        let hasBundleDiscount = false;
+
+        // Check if product has explicit variants in MongoDB
+        let matchedVariant = null;
+        if (dbProduct.variants && Array.isArray(dbProduct.variants) && dbProduct.variants.length > 0) {
+            const itemVar = String(item.selectedVariant || '').trim().toLowerCase();
+            // 1. Exact match by id or name
+            matchedVariant = dbProduct.variants.find(v => {
+                const vId = String(v.id || '').toLowerCase();
+                const vName = String(v.name || '').toLowerCase();
+                return vId === itemVar || vName === itemVar;
+            });
+
+            // 2. Specific pack tier matching using word boundaries
+            if (!matchedVariant) {
+                if (/\b3\b/.test(itemVar) || itemVar.includes('triple') || itemVar.includes('course') || itemVar.includes('3x') || itemVar.includes('45ml')) {
+                    matchedVariant = dbProduct.variants.find(v => String(v.id).toLowerCase() === 'triple' || v.multiplier === 3);
+                } else if (/\b2\b/.test(itemVar) || itemVar.includes('twin') || itemVar.includes('double') || itemVar.includes('2x') || itemVar.includes('30ml')) {
+                    matchedVariant = dbProduct.variants.find(v => String(v.id).toLowerCase() === 'twin' || v.multiplier === 2);
+                } else if (/\b1\b/.test(itemVar) || itemVar.includes('single') || itemVar.includes('standard') || itemVar.includes('1x') || itemVar.includes('15ml')) {
+                    matchedVariant = dbProduct.variants.find(v => String(v.id).toLowerCase() === 'single' || v.multiplier === 1);
+                }
             }
         }
 
-        verifiedItemsPrice += unitPrice * qty;
+        if (matchedVariant) {
+            unitPrice = Number(matchedVariant.price) || unitPrice;
+            const unitMrp = Number(matchedVariant.mrp) || (unitPrice * (matchedVariant.multiplier || 1));
+            if (matchedVariant.multiplier > 1 || matchedVariant.id === 'twin' || matchedVariant.id === 'triple' || (unitMrp > unitPrice && Math.round(((unitMrp - unitPrice) / unitMrp) * 100) >= 10)) {
+                hasBundleDiscount = true;
+            }
+        } else if (item.selectedVariant) {
+            const vLower = String(item.selectedVariant).toLowerCase();
+            const baseMrp = Number(dbProduct.mrp) || Number(dbProduct.price) || 999;
+            if (/\b3\b/.test(vLower) || vLower.includes('triple') || vLower.includes('course') || vLower.includes('3x') || vLower.includes('45ml')) {
+                unitPrice = Math.round((baseMrp * 3) * 0.85);
+                hasBundleDiscount = true;
+            } else if (/\b2\b/.test(vLower) || vLower.includes('twin') || vLower.includes('double') || vLower.includes('2x') || vLower.includes('30ml')) {
+                unitPrice = Math.round((baseMrp * 2) * 0.90);
+                hasBundleDiscount = true;
+            } else if (/\b1\b/.test(vLower) || vLower.includes('single') || vLower.includes('standard') || vLower.includes('1x') || vLower.includes('15ml')) {
+                unitPrice = Number(dbProduct.price) || Math.round(baseMrp * 0.95);
+            }
+        }
+
+        const itemSubtotal = unitPrice * qty;
+        verifiedItemsPrice += itemSubtotal;
 
         verifiedOrderItems.push({
             product: dbProduct._id,
@@ -83,6 +120,9 @@ const addOrderItems = async (req, res) => {
             sku: dbProduct.sku || '',
             weight: dbProduct.weight || 0.5,
             category: dbProduct.category || '',
+            selectedVariant: item.selectedVariant || null,
+            hasBundleDiscount,
+            subtotal: itemSubtotal,
         });
     }
 
@@ -103,14 +143,24 @@ const addOrderItems = async (req, res) => {
             const meetsMin = verifiedItemsPrice >= (couponDoc.minOrderAmount || 0);
 
             if (isValidDates && isValidCap && meetsMin) {
-                if (couponDoc.type === 'percentage') {
-                    let disc = Math.round((verifiedItemsPrice * couponDoc.discount) / 100);
-                    if (couponDoc.maxDiscount && couponDoc.maxDiscount > 0) {
-                        disc = Math.min(disc, couponDoc.maxDiscount);
+                // If coupon cannot stack with bundles, exclude bundled items
+                let eligibleSubtotal = verifiedItemsPrice;
+                if (!couponDoc.canStack) {
+                    eligibleSubtotal = verifiedOrderItems
+                        .filter(it => !it.hasBundleDiscount)
+                        .reduce((sum, it) => sum + it.subtotal, 0);
+                }
+
+                if (eligibleSubtotal > 0) {
+                    if (couponDoc.type === 'percentage') {
+                        let disc = Math.round((eligibleSubtotal * couponDoc.discount) / 100);
+                        if (couponDoc.maxDiscount && couponDoc.maxDiscount > 0) {
+                            disc = Math.min(disc, couponDoc.maxDiscount);
+                        }
+                        verifiedDiscount = disc;
+                    } else {
+                        verifiedDiscount = Math.min(eligibleSubtotal, Number(couponDoc.discount) || 0);
                     }
-                    verifiedDiscount = disc;
-                } else {
-                    verifiedDiscount = Math.min(verifiedItemsPrice, Number(couponDoc.discount) || 0);
                 }
             }
         }
@@ -378,17 +428,54 @@ const createWhatsAppOrder = async (req, res) => {
 
             const qty = Math.max(1, parseInt(item.qty) || 1);
             let unitPrice = Number(dbProduct.price) || 0;
+            let hasBundleDiscount = false;
 
-            if (item.selectedVariant) {
-                const vLower = String(item.selectedVariant).toLowerCase();
-                if (vLower.includes('2') || vLower.includes('twin') || vLower.includes('double')) {
-                    unitPrice = Math.round(unitPrice * 0.9);
-                } else if (vLower.includes('3') || vLower.includes('triple') || vLower.includes('course')) {
-                    unitPrice = Math.round(unitPrice * 0.85);
+            // Check if product has explicit variants in MongoDB
+            let matchedVariant = null;
+            if (dbProduct.variants && Array.isArray(dbProduct.variants) && dbProduct.variants.length > 0) {
+                const itemVar = String(item.selectedVariant || '').trim().toLowerCase();
+                // 1. Exact match by id or name
+                matchedVariant = dbProduct.variants.find(v => {
+                    const vId = String(v.id || '').toLowerCase();
+                    const vName = String(v.name || '').toLowerCase();
+                    return vId === itemVar || vName === itemVar;
+                });
+
+                // 2. Specific pack tier matching using word boundaries
+                if (!matchedVariant) {
+                    if (/\b3\b/.test(itemVar) || itemVar.includes('triple') || itemVar.includes('course') || itemVar.includes('3x') || itemVar.includes('45ml')) {
+                        matchedVariant = dbProduct.variants.find(v => String(v.id).toLowerCase() === 'triple' || v.multiplier === 3);
+                    } else if (/\b2\b/.test(itemVar) || itemVar.includes('twin') || itemVar.includes('double') || itemVar.includes('2x') || itemVar.includes('30ml')) {
+                        matchedVariant = dbProduct.variants.find(v => String(v.id).toLowerCase() === 'twin' || v.multiplier === 2);
+                    } else if (/\b1\b/.test(itemVar) || itemVar.includes('single') || itemVar.includes('standard') || itemVar.includes('1x') || itemVar.includes('15ml')) {
+                        matchedVariant = dbProduct.variants.find(v => String(v.id).toLowerCase() === 'single' || v.multiplier === 1);
+                    }
                 }
             }
 
-            verifiedItemsPrice += unitPrice * qty;
+            if (matchedVariant) {
+                unitPrice = Number(matchedVariant.price) || unitPrice;
+                const unitMrp = Number(matchedVariant.mrp) || (unitPrice * (matchedVariant.multiplier || 1));
+                if (matchedVariant.multiplier > 1 || matchedVariant.id === 'twin' || matchedVariant.id === 'triple' || (unitMrp > unitPrice && Math.round(((unitMrp - unitPrice) / unitMrp) * 100) >= 10)) {
+                    hasBundleDiscount = true;
+                }
+            } else if (item.selectedVariant) {
+                const vLower = String(item.selectedVariant).toLowerCase();
+                const baseMrp = Number(dbProduct.mrp) || Number(dbProduct.price) || 999;
+                if (/\b3\b/.test(vLower) || vLower.includes('triple') || vLower.includes('course') || vLower.includes('3x') || vLower.includes('45ml')) {
+                    unitPrice = Math.round((baseMrp * 3) * 0.85);
+                    hasBundleDiscount = true;
+                } else if (/\b2\b/.test(vLower) || vLower.includes('twin') || vLower.includes('double') || vLower.includes('2x') || vLower.includes('30ml')) {
+                    unitPrice = Math.round((baseMrp * 2) * 0.90);
+                    hasBundleDiscount = true;
+                } else if (/\b1\b/.test(vLower) || vLower.includes('single') || vLower.includes('standard') || vLower.includes('1x') || vLower.includes('15ml')) {
+                    unitPrice = Number(dbProduct.price) || Math.round(baseMrp * 0.95);
+                }
+            }
+
+            const itemSubtotal = unitPrice * qty;
+            verifiedItemsPrice += itemSubtotal;
+
             verifiedOrderItems.push({
                 product: dbProduct._id,
                 name: dbProduct.name,
@@ -397,6 +484,9 @@ const createWhatsAppOrder = async (req, res) => {
                 price: unitPrice,
                 weight: dbProduct.weight || 0.5,
                 category: dbProduct.category || '',
+                selectedVariant: item.selectedVariant || null,
+                hasBundleDiscount,
+                subtotal: itemSubtotal,
             });
         }
 
@@ -405,11 +495,20 @@ const createWhatsAppOrder = async (req, res) => {
         if (codeToValidate) {
             const coupon = await Coupon.findOne({ code: String(codeToValidate).trim().toUpperCase(), isActive: true });
             if (coupon && verifiedItemsPrice >= (coupon.minOrderAmount || 0)) {
-                if (coupon.type === 'percentage') {
-                    verifiedDiscount = Math.round((verifiedItemsPrice * coupon.discount) / 100);
-                    if (coupon.maxDiscount) verifiedDiscount = Math.min(verifiedDiscount, coupon.maxDiscount);
-                } else {
-                    verifiedDiscount = Math.min(verifiedItemsPrice, Number(coupon.discount) || 0);
+                let eligibleSubtotal = verifiedItemsPrice;
+                if (!coupon.canStack) {
+                    eligibleSubtotal = verifiedOrderItems
+                        .filter(it => !it.hasBundleDiscount)
+                        .reduce((sum, it) => sum + it.subtotal, 0);
+                }
+
+                if (eligibleSubtotal > 0) {
+                    if (coupon.type === 'percentage') {
+                        verifiedDiscount = Math.round((eligibleSubtotal * coupon.discount) / 100);
+                        if (coupon.maxDiscount) verifiedDiscount = Math.min(verifiedDiscount, coupon.maxDiscount);
+                    } else {
+                        verifiedDiscount = Math.min(eligibleSubtotal, Number(coupon.discount) || 0);
+                    }
                 }
             }
         } else if (req.body.discountAmount) {

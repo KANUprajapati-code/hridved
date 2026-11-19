@@ -261,16 +261,53 @@ const recalculateCart = async (req, res) => {
             // Determine unit price and MRP from database (never trusting client!)
             let unitPrice = Number(dbProduct.price) || 0;
             let unitMrp = Number(dbProduct.mrp) || unitPrice;
+            let hasBundleDiscount = false;
 
-            // Check bundle / treatment course pricing if selectedVariant is specified
-            if (item.selectedVariant) {
+            // Check if product has explicit variants in MongoDB
+            let matchedVariant = null;
+            if (dbProduct.variants && Array.isArray(dbProduct.variants) && dbProduct.variants.length > 0) {
+                const itemVar = String(item.selectedVariant || '').trim().toLowerCase();
+                // 1. Exact match by id or name
+                matchedVariant = dbProduct.variants.find(v => {
+                    const vId = String(v.id || '').toLowerCase();
+                    const vName = String(v.name || '').toLowerCase();
+                    return vId === itemVar || vName === itemVar;
+                });
+
+                // 2. Specific pack tier matching using word boundaries
+                if (!matchedVariant) {
+                    if (/\b3\b/.test(itemVar) || itemVar.includes('triple') || itemVar.includes('course') || itemVar.includes('3x') || itemVar.includes('45ml')) {
+                        matchedVariant = dbProduct.variants.find(v => String(v.id).toLowerCase() === 'triple' || v.multiplier === 3);
+                    } else if (/\b2\b/.test(itemVar) || itemVar.includes('twin') || itemVar.includes('double') || itemVar.includes('2x') || itemVar.includes('30ml')) {
+                        matchedVariant = dbProduct.variants.find(v => String(v.id).toLowerCase() === 'twin' || v.multiplier === 2);
+                    } else if (/\b1\b/.test(itemVar) || itemVar.includes('single') || itemVar.includes('standard') || itemVar.includes('1x') || itemVar.includes('15ml')) {
+                        matchedVariant = dbProduct.variants.find(v => String(v.id).toLowerCase() === 'single' || v.multiplier === 1);
+                    }
+                }
+            }
+
+            if (matchedVariant) {
+                unitPrice = Number(matchedVariant.price) || unitPrice;
+                unitMrp = Number(matchedVariant.mrp) || (unitPrice * (matchedVariant.multiplier || 1));
+                if (matchedVariant.multiplier > 1 || matchedVariant.id === 'twin' || matchedVariant.id === 'triple' || (unitMrp > unitPrice && Math.round(((unitMrp - unitPrice) / unitMrp) * 100) >= 10)) {
+                    hasBundleDiscount = true;
+                }
+            } else if (item.selectedVariant) {
                 const variantLower = String(item.selectedVariant).toLowerCase();
-                if (variantLower.includes('2') || variantLower.includes('twin') || variantLower.includes('double')) {
-                    // 10% bundle discount
-                    unitPrice = Math.round(unitPrice * 0.9);
-                } else if (variantLower.includes('3') || variantLower.includes('triple') || variantLower.includes('course')) {
-                    // 15% course discount
-                    unitPrice = Math.round(unitPrice * 0.85);
+                const baseMrp = Number(dbProduct.mrp) || Number(dbProduct.price) || 999;
+                if (/\b3\b/.test(variantLower) || variantLower.includes('triple') || variantLower.includes('course') || variantLower.includes('3x') || variantLower.includes('45ml')) {
+                    // 3 Pack: 3 bottles, 15% discount on base MRP
+                    unitMrp = baseMrp * 3;
+                    unitPrice = Math.round((baseMrp * 3) * 0.85);
+                    hasBundleDiscount = true;
+                } else if (/\b2\b/.test(variantLower) || variantLower.includes('twin') || variantLower.includes('double') || variantLower.includes('2x') || variantLower.includes('30ml')) {
+                    // 2 Pack: 2 bottles, 10% discount on base MRP
+                    unitMrp = baseMrp * 2;
+                    unitPrice = Math.round((baseMrp * 2) * 0.90);
+                    hasBundleDiscount = true;
+                } else if (/\b1\b/.test(variantLower) || variantLower.includes('single') || variantLower.includes('standard') || variantLower.includes('1x') || variantLower.includes('15ml')) {
+                    unitMrp = baseMrp;
+                    unitPrice = Number(dbProduct.price) || Math.round(baseMrp * 0.95);
                 }
             }
 
@@ -296,6 +333,7 @@ const recalculateCart = async (req, res) => {
                 gst: dbProduct.gst || 0,
                 weight: dbProduct.weight || 0.5,
                 subtotal: itemSubtotal,
+                hasBundleDiscount,
             });
         }
 
@@ -335,16 +373,23 @@ const recalculateCart = async (req, res) => {
 
                 if (customerUsageAllowed) {
                     // Check category scope if defined
-                    let eligibleSubtotal = itemsPrice;
+                    let eligibleItems = verifiedItems;
                     if (coupon.categoryScope && coupon.categoryScope.length > 0) {
                         const scopeCategories = coupon.categoryScope.map(c => c.toLowerCase());
-                        eligibleSubtotal = verifiedItems
-                            .filter(it => scopeCategories.includes((it.category || '').toLowerCase()))
-                            .reduce((sum, it) => sum + it.subtotal, 0);
+                        eligibleItems = eligibleItems.filter(it => scopeCategories.includes((it.category || '').toLowerCase()));
                     }
 
+                    // Strict anti-stacking: Do NOT allow coupon discount on already-bundled / volume-discounted items if coupon cannot stack
+                    if (!coupon.canStack) {
+                        eligibleItems = eligibleItems.filter(it => !it.hasBundleDiscount);
+                    }
+
+                    const eligibleSubtotal = eligibleItems.reduce((sum, it) => sum + it.subtotal, 0);
+
                     if (eligibleSubtotal <= 0) {
-                        couponError = `Coupon "${cleanCode}" is only applicable to categories: ${coupon.categoryScope.join(', ')}`;
+                        couponError = coupon.canStack
+                            ? `Coupon "${cleanCode}" is only applicable to categories: ${coupon.categoryScope?.join(', ')}`
+                            : `Coupon "${cleanCode}" cannot be combined with already discounted value packs.`;
                     } else {
                         if (coupon.type === 'percentage') {
                             let calculatedDiscount = Math.round((eligibleSubtotal * coupon.discount) / 100);
