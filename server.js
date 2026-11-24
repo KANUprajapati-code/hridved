@@ -22,23 +22,30 @@ app.set('trust proxy', 1);
 const allowedOrigins = [
   "http://localhost:5173",
   "http://localhost:5174",
+  "http://localhost:3000",
   "https://www.hridved.in",
   "https://hridved.in"
 ];
 
-// Strict regex for Vercel preview/production subdomains
-const vercelRegex = /^https:\/\/hridved-.*\.vercel\.app$/;
+// Strict regex for Vercel preview/production subdomains and hridved domains
+const originRegex = /^(https:\/\/([a-zA-Z0-9-]+\.)?hridved\.in|https:\/\/hridved-.*\.vercel\.app)$/;
+
+const isOriginAllowed = (origin) => {
+  if (!origin) return true;
+  const clean = origin.trim().replace(/\/+$/, '');
+  return allowedOrigins.includes(clean) || originRegex.test(clean);
+};
 
 // Universal Pre-flight OPTIONS & CORS Headers Interceptor (Guarantees HTTP 200 OK for every OPTIONS preflight)
 app.use((req, res, next) => {
   const origin = req.headers.origin;
-  const isAllowed = !origin || allowedOrigins.includes(origin) || vercelRegex.test(origin);
-
-  if (origin && isAllowed) {
-    res.setHeader('Access-Control-Allow-Origin', origin);
+  if (origin) {
+    const cleanOrigin = origin.trim().replace(/\/+$/, '');
+    const allowed = isOriginAllowed(cleanOrigin);
+    res.setHeader('Access-Control-Allow-Origin', allowed ? origin : 'https://www.hridved.in');
     res.setHeader('Access-Control-Allow-Credentials', 'true');
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, Origin, Accept, X-Requested-With, X-CSRF-Token, Idempotency-Key, idempotency-key, x-idempotency-key, Cache-Control, Pragma');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, Origin, Accept, X-Requested-With, X-CSRF-Token, Idempotency-Key, idempotency-key, x-idempotency-key, Cache-Control, Pragma, X-Api-Version');
     res.setHeader('Access-Control-Max-Age', '86400');
   }
 
@@ -51,9 +58,7 @@ app.use((req, res, next) => {
 const corsOptions = {
   origin: function (origin, callback) {
     // Allow requests with no origin (like mobile apps or curl)
-    if (!origin) return callback(null, true);
-
-    if (allowedOrigins.includes(origin) || vercelRegex.test(origin)) {
+    if (!origin || isOriginAllowed(origin)) {
       callback(null, true);
     } else {
       console.warn('CORS Blocked for origin:', origin);
@@ -73,18 +78,19 @@ const corsOptions = {
     'idempotency-key',
     'x-idempotency-key',
     'Cache-Control',
-    'Pragma'
+    'Pragma',
+    'X-Api-Version'
   ],
   exposedHeaders: ['set-cookie'],
   optionsSuccessStatus: 200 // Legacy browser support for 204 preflight
 };
 
 app.use(cors(corsOptions));
-app.options('*', cors(corsOptions));
 
-// Security Headers (configured not to interfere with cross-origin embeds)
+// Security Headers (configured not to interfere with cross-origin embeds and Google OAuth popups)
 app.use(helmet({
-  crossOriginResourcePolicy: { policy: "cross-origin" }
+  crossOriginResourcePolicy: { policy: "cross-origin" },
+  crossOriginOpenerPolicy: { policy: "same-origin-allow-popups" }
 }));
 
 // Request Logger for Production Debugging

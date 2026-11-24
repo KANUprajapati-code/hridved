@@ -5,10 +5,15 @@ import crypto from 'crypto';
 
 const router = express.Router();
 
-const razorpay = new Razorpay({
-    key_id: process.env.RAZORPAY_KEY_ID,
-    key_secret: process.env.RAZORPAY_KEY_SECRET,
-});
+const getRazorpayInstance = () => {
+    const key_id = process.env.RAZORPAY_KEY_ID ? process.env.RAZORPAY_KEY_ID.trim() : null;
+    const key_secret = process.env.RAZORPAY_KEY_SECRET ? process.env.RAZORPAY_KEY_SECRET.trim() : null;
+    if (!key_id || !key_secret) {
+        console.warn('[DOCTOR_PAYMENT] Razorpay keys missing');
+        return null;
+    }
+    return new Razorpay({ key_id, key_secret });
+};
 
 // Initiate doctor booking payment
 router.post('/doctor-booking', async (req, res, next) => {
@@ -39,6 +44,10 @@ router.post('/doctor-booking', async (req, res, next) => {
             receipt: `doctor-booking-${Date.now()}`,
         };
 
+        const razorpay = getRazorpayInstance();
+        if (!razorpay) {
+            return res.status(500).json({ message: 'Payment gateway not configured' });
+        }
         const order = await razorpay.orders.create(options);
 
         // Create pending booking record

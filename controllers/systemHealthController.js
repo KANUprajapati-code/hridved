@@ -3,7 +3,7 @@ import Product from '../models/Product.js';
 import Coupon from '../models/Coupon.js';
 import Cart from '../models/Cart.js';
 import Order from '../models/Order.js';
-import ShippingConfig from '../models/ShippingConfig.js';
+import SystemConfig from '../models/SystemConfig.js';
 import { matchProductVariant } from '../utils/variantHelper.js';
 
 // @desc    Run full system diagnostics and health audit
@@ -200,7 +200,8 @@ export const runSystemAudit = async (req, res) => {
         }
 
         // 5. Shipping & Threshold Config
-        const shippingConfig = await ShippingConfig.findOne().lean();
+        const systemConfig = await SystemConfig.findOne().lean();
+        const shippingConfig = systemConfig?.shipping;
         passedChecks.push({
             name: 'Courier & Shipping Configuration',
             detail: `Free shipping threshold set at ₹${shippingConfig?.freeShippingThreshold || 999}, base courier rate ₹${shippingConfig?.shippingFee || 49}.`,
@@ -339,16 +340,18 @@ export const autoFixSystemIssues = async (req, res) => {
             fixedActions.push(`Cleaned orphan items from ${orphanCleanResult.modifiedCount} user carts.`);
         }
 
-        // 5. Ensure default ShippingConfig exists
-        const existingConfig = await ShippingConfig.findOne();
+        // 5. Ensure default SystemConfig exists
+        let existingConfig = await SystemConfig.findOne();
         if (!existingConfig) {
-            await ShippingConfig.create({
-                freeShippingThreshold: 999,
-                shippingFee: 49,
-                isFreeShipping: false,
-                codFee: 0,
-                isCodFeeEnabled: false,
-                vamashipEnabled: true
+            await SystemConfig.create({
+                shipping: {
+                    freeShippingThreshold: 999,
+                    shippingFee: 49,
+                    isFreeShipping: false,
+                    codFee: 0,
+                    isCodFeeEnabled: false,
+                    vamashipEnabled: true
+                }
             });
             fixedActions.push('Created default shipping configuration settings.');
         }
