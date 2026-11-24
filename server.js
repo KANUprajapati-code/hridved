@@ -29,6 +29,25 @@ const allowedOrigins = [
 // Strict regex for Vercel preview/production subdomains
 const vercelRegex = /^https:\/\/hridved-.*\.vercel\.app$/;
 
+// Universal Pre-flight OPTIONS & CORS Headers Interceptor (Guarantees HTTP 200 OK for every OPTIONS preflight)
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  const isAllowed = !origin || allowedOrigins.includes(origin) || vercelRegex.test(origin);
+
+  if (origin && isAllowed) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, Origin, Accept, X-Requested-With, X-CSRF-Token, Idempotency-Key, idempotency-key, x-idempotency-key, Cache-Control, Pragma');
+    res.setHeader('Access-Control-Max-Age', '86400');
+  }
+
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+  next();
+});
+
 const corsOptions = {
   origin: function (origin, callback) {
     // Allow requests with no origin (like mobile apps or curl)
@@ -61,6 +80,7 @@ const corsOptions = {
 };
 
 app.use(cors(corsOptions));
+app.options('*', cors(corsOptions));
 
 // Security Headers (configured not to interfere with cross-origin embeds)
 app.use(helmet({

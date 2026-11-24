@@ -103,7 +103,7 @@ export const facebookAuth = async (req, res) => {
 // @access  Public
 export const getAuthStatus = (req, res) => {
     res.json({
-        googleClientId: process.env.GOOGLE_CLIENT_ID || 'NOT_CONFIGURED',
+        googleClientId: process.env.GOOGLE_CLIENT_ID || '71984050536-acp2k06vltsbb3vejj80k0rffhgl48c7.apps.googleusercontent.com',
         facebookAppId: process.env.FACEBOOK_APP_ID || 'NOT_CONFIGURED',
     });
 };
