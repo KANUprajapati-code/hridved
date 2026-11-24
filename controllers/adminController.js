@@ -82,16 +82,19 @@ const getDashboardStats = async (req, res) => {
                 sku: `SKU-${p._id.toString().substring(0, 6).toUpperCase()}`,
                 left: p.countInStock
             })),
-            recentOrders: recentOrders.map(o => ({
-                id: `#${o._id.toString().substring(0, 8).toUpperCase()}`,
-                name: o.user?.name || 'Guest',
-                product: o.orderItems[0]?.name + (o.orderItems.length > 1 ? ` + ${o.orderItems.length - 1} more` : ''),
-                date: new Date(o.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }),
-                amount: `₹${o.totalPrice.toLocaleString('en-IN')}`,
-                status: o.isDelivered ? 'Delivered' : (o.isPaid ? 'Paid' : 'Pending'),
-                isPaid: o.isPaid,
-                isDelivered: o.isDelivered
-            }))
+            recentOrders: recentOrders.map(o => {
+                const isDelivered = Boolean(o.isDelivered || o.shippingStatus === 'Delivered' || o.orderStatus === 'Delivered');
+                return {
+                    id: `#${o._id.toString().substring(0, 8).toUpperCase()}`,
+                    name: o.user?.name || o.shippingAddress?.fullName || 'Guest',
+                    product: o.orderItems[0]?.name + (o.orderItems.length > 1 ? ` + ${o.orderItems.length - 1} more` : ''),
+                    date: new Date(o.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }),
+                    amount: `₹${o.totalPrice.toLocaleString('en-IN')}`,
+                    status: isDelivered ? 'Delivered' : (o.isPaid ? 'Paid' : 'Pending'),
+                    isPaid: o.isPaid,
+                    isDelivered: isDelivered
+                };
+            })
         });
     } catch (error) {
         console.error(error);

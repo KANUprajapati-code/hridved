@@ -246,9 +246,22 @@ export const trackShipment = async (req, res) => {
             if (liveData.expectedDeliveryDate) {
                 order.estimatedDelivery = new Date(liveData.expectedDeliveryDate);
             }
-            if (liveData.currentStatusCode === '100') {
+            const isCarrierDelivered = liveData.currentStatusCode === '100' ||
+                liveData.currentShippingStatus === 'Delivered' ||
+                (liveData.currentStatus && liveData.currentStatus.toLowerCase().includes('deliver')) ||
+                liveData.currentStep === 4;
+
+            if (isCarrierDelivered) {
                 order.isDelivered = true;
                 order.deliveredAt = order.deliveredAt || new Date();
+                order.shippingStatus = 'Delivered';
+                order.orderStatus = 'Delivered';
+                order.trackingStatus = 'Delivered';
+                if (order.paymentMethod === 'COD' && !order.isPaid) {
+                    order.isPaid = true;
+                    order.paidAt = order.deliveredAt;
+                    order.paymentStatus = 'Captured';
+                }
             }
             order.save().catch(err => console.warn('[TRACK] Non-fatal order save err:', err.message));
 
@@ -397,9 +410,22 @@ export const handleWayuvegaWebhook = async (req, res) => {
                 order.estimatedDelivery = new Date(expected_delivery_date);
             }
 
-            if (order_status_code === '100') {
+            const isWebhookDelivered = order_status_code === '100' ||
+                mapped.status === 'Delivered' ||
+                (mapped.label && mapped.label.toLowerCase().includes('deliver')) ||
+                mapped.step === 4;
+
+            if (isWebhookDelivered) {
                 order.isDelivered = true;
-                order.deliveredAt = status_date_time_utc ? new Date(status_date_time_utc) : new Date();
+                order.deliveredAt = status_date_time_utc ? new Date(status_date_time_utc) : (order.deliveredAt || new Date());
+                order.shippingStatus = 'Delivered';
+                order.orderStatus = 'Delivered';
+                order.trackingStatus = 'Delivered';
+                if (order.paymentMethod === 'COD' && !order.isPaid) {
+                    order.isPaid = true;
+                    order.paidAt = order.deliveredAt;
+                    order.paymentStatus = 'Captured';
+                }
             }
 
             order.trackingHistory = order.trackingHistory || [];

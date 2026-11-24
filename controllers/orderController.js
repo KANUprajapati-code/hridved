@@ -296,8 +296,17 @@ const updateOrderToDelivered = async (req, res) => {
 
     if (order) {
         order.isDelivered = true;
-        order.deliveredAt = Date.now();
+        order.deliveredAt = order.deliveredAt || Date.now();
         order.shippingStatus = 'Delivered';
+        order.orderStatus = 'Delivered';
+        order.trackingStatus = 'Delivered';
+
+        // For Cash on Delivery, package delivery confirms payment receipt
+        if (order.paymentMethod === 'COD' && !order.isPaid) {
+            order.isPaid = true;
+            order.paidAt = order.deliveredAt;
+            order.paymentStatus = 'Captured';
+        }
 
         const updatedOrder = await order.save();
 
@@ -368,7 +377,7 @@ const getMyOrders = async (req, res) => {
 // @route   GET /api/orders
 // @access  Private/Admin
 const getOrders = async (req, res) => {
-    const orders = await Order.find({}).populate('user', 'id name');
+    const orders = await Order.find({}).sort({ createdAt: -1 }).populate('user', 'id name');
     res.json(orders);
 };
 

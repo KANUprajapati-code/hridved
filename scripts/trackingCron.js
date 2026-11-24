@@ -27,10 +27,17 @@ const updateShipmentStatuses = async () => {
                     
                     order.trackingStatus = status;
 
-                    if (status === 'Delivered') {
+                    if (status === 'Delivered' || status.toLowerCase().includes('deliver')) {
                         order.shippingStatus = 'Delivered';
+                        order.orderStatus = 'Delivered';
+                        order.trackingStatus = 'Delivered';
                         order.isDelivered = true;
-                        order.deliveredAt = new Date();
+                        order.deliveredAt = order.deliveredAt || new Date();
+                        if (order.paymentMethod === 'COD' && !order.isPaid) {
+                            order.isPaid = true;
+                            order.paidAt = order.deliveredAt;
+                            order.paymentStatus = 'Captured';
+                        }
                     } else if (status === 'RTO' || status.toLowerCase().includes('returned')) {
                         order.shippingStatus = 'RTO';
                     } else if (status === 'Shipped' || status === 'In Transit') {
