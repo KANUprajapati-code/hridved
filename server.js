@@ -142,6 +142,7 @@ import websiteEventRoutes from './routes/websiteEventRoutes.js';
 import notificationRoutes from './routes/notificationRoutes.js';
 import razorpayRoutes from './routes/razorpayRoutes.js';
 import aiAssistantRoutes from './routes/aiAssistantRoutes.js';
+import systemHealthRoutes from './routes/systemHealthRoutes.js';
 import { notFound, errorHandler } from './middleware/errorMiddleware.js';
 
 app.use('/api/users', userRoutes);
@@ -172,6 +173,7 @@ app.use('/api/leads', leadRoutes);
 app.use('/api/website-events', websiteEventRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/assistant', aiAssistantRoutes);
+app.use('/api/system-health', systemHealthRoutes);
 
 import path from 'path';
 import { fileURLToPath } from 'url';

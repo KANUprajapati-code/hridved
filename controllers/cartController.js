@@ -2,6 +2,7 @@ import mongoose from 'mongoose';
 import Cart from '../models/Cart.js';
 import Product from '../models/Product.js';
 import Coupon from '../models/Coupon.js';
+import { matchProductVariant } from '../utils/variantHelper.js';
 
 // @desc    Get user cart
 // @route   GET /api/cart
@@ -26,7 +27,7 @@ const getCart = async (req, res) => {
 // @access  Private
 const addToCart = async (req, res) => {
     try {
-        const { product, name, qty, image, price, gst, weight } = req.body;
+        const { product, name, qty, image, price, mrp, sku, packSize, selectedVariant, gst, weight } = req.body;
 
         let cart = await Cart.findOne({ user: req.user._id });
 
@@ -35,10 +36,26 @@ const addToCart = async (req, res) => {
         }
 
         const sid = String(product);
-        const existItem = cart.cartItems.find((x) => String(x.product) === sid || String(x._id) === sid);
+        const incomingVar = String(selectedVariant || '').trim().toLowerCase();
+        
+        // Find existing item matching product ID and variant
+        const existItem = cart.cartItems.find((x) => {
+            const sameProduct = String(x.product) === sid || String(x._id) === sid;
+            const itemVar = String(x.selectedVariant || '').trim().toLowerCase();
+            return sameProduct && (incomingVar ? itemVar === incomingVar : true);
+        });
 
         if (existItem) {
             existItem.qty = Math.max(1, parseInt(qty) || 1);
+            if (name) existItem.name = name;
+            if (price !== undefined) existItem.price = Number(price) || 0;
+            if (mrp !== undefined) existItem.mrp = Number(mrp) || Number(price) || 0;
+            if (sku) existItem.sku = sku;
+            if (packSize) existItem.packSize = packSize;
+            if (image) existItem.image = image;
+            if (selectedVariant !== undefined) existItem.selectedVariant = selectedVariant;
+            if (gst !== undefined) existItem.gst = Number(gst) || 0;
+            if (weight !== undefined) existItem.weight = Number(weight) || 0.5;
         } else {
             cart.cartItems.push({ 
                 product: mongoose.Types.ObjectId.isValid(product) ? product : undefined, 
@@ -46,6 +63,10 @@ const addToCart = async (req, res) => {
                 qty: Math.max(1, parseInt(qty) || 1), 
                 image: image || '/placeholder.png', 
                 price: Number(price) || 0, 
+                mrp: Number(mrp) || Number(price) || 0,
+                sku: sku || '',
+                packSize: packSize || '',
+                selectedVariant: selectedVariant || '',
                 gst: Number(gst) || 0,
                 weight: Number(weight) || 0.5
             });
@@ -151,12 +172,23 @@ const mergeCart = async (req, res) => {
 
         cartItems.forEach((newItem) => {
             const newPid = String(newItem.product || newItem._id);
+            const newVar = String(newItem.selectedVariant || '').trim().toLowerCase();
             const existItem = cart.cartItems.find(
-                (x) => String(x.product) === newPid || String(x._id) === newPid
+                (x) => (String(x.product) === newPid || String(x._id) === newPid) &&
+                       (newVar ? String(x.selectedVariant || '').trim().toLowerCase() === newVar : true)
             );
 
             if (existItem) {
                 existItem.qty = Math.max(1, parseInt(newItem.qty) || 1);
+                if (newItem.name) existItem.name = newItem.name;
+                if (newItem.price !== undefined) existItem.price = Number(newItem.price) || 0;
+                if (newItem.mrp !== undefined) existItem.mrp = Number(newItem.mrp) || Number(newItem.price) || 0;
+                if (newItem.sku) existItem.sku = newItem.sku;
+                if (newItem.packSize) existItem.packSize = newItem.packSize;
+                if (newItem.image) existItem.image = newItem.image;
+                if (newItem.selectedVariant !== undefined) existItem.selectedVariant = newItem.selectedVariant;
+                if (newItem.gst !== undefined) existItem.gst = Number(newItem.gst) || 0;
+                if (newItem.weight !== undefined) existItem.weight = Number(newItem.weight) || 0.5;
             } else if (newItem && (newItem.product || newItem._id)) {
                 cart.cartItems.push({
                     product: mongoose.Types.ObjectId.isValid(newItem.product || newItem._id) 
@@ -166,6 +198,10 @@ const mergeCart = async (req, res) => {
                     qty: Math.max(1, parseInt(newItem.qty) || 1),
                     image: newItem.image || '/placeholder.png',
                     price: Number(newItem.price) || 0,
+                    mrp: Number(newItem.mrp) || Number(newItem.price) || 0,
+                    sku: newItem.sku || '',
+                    packSize: newItem.packSize || '',
+                    selectedVariant: newItem.selectedVariant || '',
                     gst: Number(newItem.gst) || 0,
                     weight: Number(newItem.weight) || 0.5
                 });
@@ -258,33 +294,13 @@ const recalculateCart = async (req, res) => {
                 verifiedQty = dbProduct.countInStock;
             }
 
-            // Determine unit price and MRP from database (never trusting client!)
+            // Determine unit price and MRP from database with variant matching
             let unitPrice = Number(dbProduct.price) || 0;
             let unitMrp = Number(dbProduct.mrp) || unitPrice;
             let hasBundleDiscount = false;
 
-            // Check if product has explicit variants in MongoDB
-            let matchedVariant = null;
-            if (dbProduct.variants && Array.isArray(dbProduct.variants) && dbProduct.variants.length > 0) {
-                const itemVar = String(item.selectedVariant || '').trim().toLowerCase();
-                // 1. Exact match by id or name
-                matchedVariant = dbProduct.variants.find(v => {
-                    const vId = String(v.id || '').toLowerCase();
-                    const vName = String(v.name || '').toLowerCase();
-                    return vId === itemVar || vName === itemVar;
-                });
-
-                // 2. Specific pack tier matching using word boundaries
-                if (!matchedVariant) {
-                    if (/\b3\b/.test(itemVar) || itemVar.includes('triple') || itemVar.includes('course') || itemVar.includes('3x') || itemVar.includes('45ml')) {
-                        matchedVariant = dbProduct.variants.find(v => String(v.id).toLowerCase() === 'triple' || v.multiplier === 3);
-                    } else if (/\b2\b/.test(itemVar) || itemVar.includes('twin') || itemVar.includes('double') || itemVar.includes('2x') || itemVar.includes('30ml')) {
-                        matchedVariant = dbProduct.variants.find(v => String(v.id).toLowerCase() === 'twin' || v.multiplier === 2);
-                    } else if (/\b1\b/.test(itemVar) || itemVar.includes('single') || itemVar.includes('standard') || itemVar.includes('1x') || itemVar.includes('15ml')) {
-                        matchedVariant = dbProduct.variants.find(v => String(v.id).toLowerCase() === 'single' || v.multiplier === 1);
-                    }
-                }
-            }
+            // Robust variant matching
+            const matchedVariant = matchProductVariant(dbProduct, item);
 
             if (matchedVariant) {
                 unitPrice = Number(matchedVariant.price) || unitPrice;
@@ -292,20 +308,18 @@ const recalculateCart = async (req, res) => {
                 if (matchedVariant.multiplier > 1 || matchedVariant.id === 'twin' || matchedVariant.id === 'triple' || (unitMrp > unitPrice && Math.round(((unitMrp - unitPrice) / unitMrp) * 100) >= 10)) {
                     hasBundleDiscount = true;
                 }
-            } else if (item.selectedVariant) {
-                const variantLower = String(item.selectedVariant).toLowerCase();
+            } else if (item.selectedVariant || item.name) {
+                const combinedLower = `${String(item.selectedVariant || '')} ${String(item.name || '')}`.toLowerCase();
                 const baseMrp = Number(dbProduct.mrp) || Number(dbProduct.price) || 999;
-                if (/\b3\b/.test(variantLower) || variantLower.includes('triple') || variantLower.includes('course') || variantLower.includes('3x') || variantLower.includes('45ml')) {
-                    // 3 Pack: 3 bottles, 15% discount on base MRP
+                if (/\b(triple|3x|3-month|45ml)\b/i.test(combinedLower) || combinedLower.includes('3 pack') || combinedLower.includes('3x15ml') || combinedLower.includes('3-month')) {
                     unitMrp = baseMrp * 3;
                     unitPrice = Math.round((baseMrp * 3) * 0.85);
                     hasBundleDiscount = true;
-                } else if (/\b2\b/.test(variantLower) || variantLower.includes('twin') || variantLower.includes('double') || variantLower.includes('2x') || variantLower.includes('30ml')) {
-                    // 2 Pack: 2 bottles, 10% discount on base MRP
+                } else if (/\b(twin|double|2x|30ml)\b/i.test(combinedLower) || combinedLower.includes('2 pack') || combinedLower.includes('2x15ml')) {
                     unitMrp = baseMrp * 2;
                     unitPrice = Math.round((baseMrp * 2) * 0.90);
                     hasBundleDiscount = true;
-                } else if (/\b1\b/.test(variantLower) || variantLower.includes('single') || variantLower.includes('standard') || variantLower.includes('1x') || variantLower.includes('15ml')) {
+                } else if (/\b(single|standard|15ml)\b/i.test(combinedLower) || combinedLower.includes('1 pack') || combinedLower.includes('1x15ml')) {
                     unitMrp = baseMrp;
                     unitPrice = Number(dbProduct.price) || Math.round(baseMrp * 0.95);
                 }
@@ -320,15 +334,15 @@ const recalculateCart = async (req, res) => {
             verifiedItems.push({
                 product: dbProduct._id,
                 _id: dbProduct._id,
-                name: dbProduct.name,
+                name: item.name || (matchedVariant && matchedVariant.name ? `${dbProduct.name} (${matchedVariant.name})` : dbProduct.name),
                 image: dbProduct.image,
                 price: unitPrice,
                 mrp: unitMrp,
                 qty: verifiedQty,
                 packSize: dbProduct.packSize || '',
-                sku: dbProduct.sku || '',
+                sku: matchedVariant ? (matchedVariant.sku || dbProduct.sku) : (item.sku || dbProduct.sku || ''),
                 category: dbProduct.category || '',
-                selectedVariant: item.selectedVariant || null,
+                selectedVariant: matchedVariant ? matchedVariant.name : (item.selectedVariant || null),
                 countInStock: dbProduct.countInStock,
                 gst: dbProduct.gst || 0,
                 weight: dbProduct.weight || 0.5,

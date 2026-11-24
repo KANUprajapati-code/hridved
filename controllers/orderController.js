@@ -4,6 +4,7 @@ import Product from '../models/Product.js';
 import Coupon from '../models/Coupon.js';
 import AudienceLead from '../models/AudienceLead.js';
 import { createWayuvegaOrder, trackWayuvegaHistory, WAYUVEGA_STATUS_MAP } from '../utils/wayuvegaService.js';
+import { matchProductVariant } from '../utils/variantHelper.js';
 
 // @desc    Create new order
 // @route   POST /api/orders
@@ -64,28 +65,8 @@ const addOrderItems = async (req, res) => {
         let unitPrice = Number(dbProduct.price) || 0;
         let hasBundleDiscount = false;
 
-        // Check if product has explicit variants in MongoDB
-        let matchedVariant = null;
-        if (dbProduct.variants && Array.isArray(dbProduct.variants) && dbProduct.variants.length > 0) {
-            const itemVar = String(item.selectedVariant || '').trim().toLowerCase();
-            // 1. Exact match by id or name
-            matchedVariant = dbProduct.variants.find(v => {
-                const vId = String(v.id || '').toLowerCase();
-                const vName = String(v.name || '').toLowerCase();
-                return vId === itemVar || vName === itemVar;
-            });
-
-            // 2. Specific pack tier matching using word boundaries
-            if (!matchedVariant) {
-                if (/\b3\b/.test(itemVar) || itemVar.includes('triple') || itemVar.includes('course') || itemVar.includes('3x') || itemVar.includes('45ml')) {
-                    matchedVariant = dbProduct.variants.find(v => String(v.id).toLowerCase() === 'triple' || v.multiplier === 3);
-                } else if (/\b2\b/.test(itemVar) || itemVar.includes('twin') || itemVar.includes('double') || itemVar.includes('2x') || itemVar.includes('30ml')) {
-                    matchedVariant = dbProduct.variants.find(v => String(v.id).toLowerCase() === 'twin' || v.multiplier === 2);
-                } else if (/\b1\b/.test(itemVar) || itemVar.includes('single') || itemVar.includes('standard') || itemVar.includes('1x') || itemVar.includes('15ml')) {
-                    matchedVariant = dbProduct.variants.find(v => String(v.id).toLowerCase() === 'single' || v.multiplier === 1);
-                }
-            }
-        }
+        // Robust variant matching
+        const matchedVariant = matchProductVariant(dbProduct, item);
 
         if (matchedVariant) {
             unitPrice = Number(matchedVariant.price) || unitPrice;
@@ -93,16 +74,16 @@ const addOrderItems = async (req, res) => {
             if (matchedVariant.multiplier > 1 || matchedVariant.id === 'twin' || matchedVariant.id === 'triple' || (unitMrp > unitPrice && Math.round(((unitMrp - unitPrice) / unitMrp) * 100) >= 10)) {
                 hasBundleDiscount = true;
             }
-        } else if (item.selectedVariant) {
-            const vLower = String(item.selectedVariant).toLowerCase();
+        } else if (item.selectedVariant || item.name) {
+            const combinedLower = `${String(item.selectedVariant || '')} ${String(item.name || '')}`.toLowerCase();
             const baseMrp = Number(dbProduct.mrp) || Number(dbProduct.price) || 999;
-            if (/\b3\b/.test(vLower) || vLower.includes('triple') || vLower.includes('course') || vLower.includes('3x') || vLower.includes('45ml')) {
+            if (/\b(triple|3x|3-month|45ml)\b/i.test(combinedLower) || combinedLower.includes('3 pack') || combinedLower.includes('3x15ml') || combinedLower.includes('3-month')) {
                 unitPrice = Math.round((baseMrp * 3) * 0.85);
                 hasBundleDiscount = true;
-            } else if (/\b2\b/.test(vLower) || vLower.includes('twin') || vLower.includes('double') || vLower.includes('2x') || vLower.includes('30ml')) {
+            } else if (/\b(twin|double|2x|30ml)\b/i.test(combinedLower) || combinedLower.includes('2 pack') || combinedLower.includes('2x15ml')) {
                 unitPrice = Math.round((baseMrp * 2) * 0.90);
                 hasBundleDiscount = true;
-            } else if (/\b1\b/.test(vLower) || vLower.includes('single') || vLower.includes('standard') || vLower.includes('1x') || vLower.includes('15ml')) {
+            } else if (/\b(single|standard|15ml)\b/i.test(combinedLower) || combinedLower.includes('1 pack') || combinedLower.includes('1x15ml')) {
                 unitPrice = Number(dbProduct.price) || Math.round(baseMrp * 0.95);
             }
         }
@@ -112,15 +93,15 @@ const addOrderItems = async (req, res) => {
 
         verifiedOrderItems.push({
             product: dbProduct._id,
-            name: dbProduct.name,
+            name: item.name || (matchedVariant && matchedVariant.name ? `${dbProduct.name} (${matchedVariant.name})` : dbProduct.name),
             qty,
             image: dbProduct.image,
             price: unitPrice,
             packSize: dbProduct.packSize || '',
-            sku: dbProduct.sku || '',
+            sku: matchedVariant ? (matchedVariant.sku || dbProduct.sku) : (item.sku || dbProduct.sku || ''),
             weight: dbProduct.weight || 0.5,
             category: dbProduct.category || '',
-            selectedVariant: item.selectedVariant || null,
+            selectedVariant: matchedVariant ? matchedVariant.name : (item.selectedVariant || null),
             hasBundleDiscount,
             subtotal: itemSubtotal,
         });
