@@ -38,11 +38,15 @@ const addToCart = async (req, res) => {
         const sid = String(product);
         const incomingVar = String(selectedVariant || '').trim().toLowerCase();
         
-        // Find existing item matching product ID and variant
+        // Find existing item matching product ID and variant (or replacing default pack of same medicine)
         const existItem = cart.cartItems.find((x) => {
             const sameProduct = String(x.product) === sid || String(x._id) === sid;
+            if (!sameProduct) return false;
             const itemVar = String(x.selectedVariant || '').trim().toLowerCase();
-            return sameProduct && (incomingVar ? itemVar === incomingVar : true);
+            if (incomingVar) {
+                return itemVar === incomingVar || !itemVar;
+            }
+            return true;
         });
 
         if (existItem) {
@@ -173,10 +177,15 @@ const mergeCart = async (req, res) => {
         cartItems.forEach((newItem) => {
             const newPid = String(newItem.product || newItem._id);
             const newVar = String(newItem.selectedVariant || '').trim().toLowerCase();
-            const existItem = cart.cartItems.find(
-                (x) => (String(x.product) === newPid || String(x._id) === newPid) &&
-                       (newVar ? String(x.selectedVariant || '').trim().toLowerCase() === newVar : true)
-            );
+            const existItem = cart.cartItems.find((x) => {
+                const sameProduct = String(x.product) === newPid || String(x._id) === newPid;
+                if (!sameProduct) return false;
+                const itemVar = String(x.selectedVariant || '').trim().toLowerCase();
+                if (newVar) {
+                    return itemVar === newVar || !itemVar;
+                }
+                return true;
+            });
 
             if (existItem) {
                 existItem.qty = Math.max(1, parseInt(newItem.qty) || 1);
@@ -300,7 +309,12 @@ const recalculateCart = async (req, res) => {
             let hasBundleDiscount = false;
 
             // Robust variant matching
-            const matchedVariant = matchProductVariant(dbProduct, item);
+            let matchedVariant = matchProductVariant(dbProduct, item);
+
+            // If not matched yet, check exact price match against product's configured variants
+            if (!matchedVariant && Number(item.price) > 0 && Array.isArray(dbProduct.variants)) {
+                matchedVariant = dbProduct.variants.find(v => Number(v.price) === Number(item.price));
+            }
 
             if (matchedVariant) {
                 unitPrice = Number(matchedVariant.price) || unitPrice;

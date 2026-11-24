@@ -7,10 +7,27 @@ export const matchProductVariant = (dbProduct, item = {}) => {
     const variants = Array.isArray(dbProduct.variants) ? dbProduct.variants : [];
     if (variants.length === 0) return null;
 
+    const variantId = String(item.variantId || item.selectedVariantId || '').trim().toLowerCase();
     const itemVar = String(item.selectedVariant || '').trim().toLowerCase();
     const itemName = String(item.name || '').trim().toLowerCase();
     const itemSku = String(item.sku || '').trim().toLowerCase();
     const itemPrice = Number(item.price) || 0;
+
+    // 0. Direct match by variantId if provided
+    if (variantId) {
+        const byId = variants.find(v => String(v.id || '').toLowerCase() === variantId || String(v._id || '').toLowerCase() === variantId);
+        if (byId) return byId;
+        if (variantId === '45ml' || variantId === 'triple') {
+            const triple = variants.find(v => String(v.id).toLowerCase() === 'triple' || v.multiplier === 3);
+            if (triple) return triple;
+        } else if (variantId === '30ml' || variantId === 'twin') {
+            const twin = variants.find(v => String(v.id).toLowerCase() === 'twin' || v.multiplier === 2);
+            if (twin) return twin;
+        } else if (variantId === '15ml' || variantId === 'single') {
+            const single = variants.find(v => String(v.id).toLowerCase() === 'single' || v.multiplier === 1);
+            if (single) return single;
+        }
+    }
 
     // 1. Direct match by variant ID or Name from item.selectedVariant
     if (itemVar) {
