@@ -33,8 +33,16 @@ const getProducts = async (req, res) => {
     }
 
     if (req.query.category) {
-        const categories = req.query.category.split(',');
-        andConditions.push({ category: { $in: categories } });
+        const categories = req.query.category.split(',').map(c => c.trim()).filter(Boolean);
+        if (categories.length > 0) {
+            const catRegexes = categories.map(c => new RegExp(`^${c.replace(/[-_]/g, '[ -_]')}$`, 'i'));
+            andConditions.push({
+                $or: [
+                    { category: { $in: catRegexes } },
+                    { category: { $in: categories } }
+                ]
+            });
+        }
     }
 
     if (req.query.concern) {
