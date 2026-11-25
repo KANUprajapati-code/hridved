@@ -87,7 +87,7 @@ export const getMarketingConfig = async (req, res) => {
             success: true,
             data: {
                 googleAnalyticsId: process.env.GA_MEASUREMENT_ID || 'G-VJ0G98SBVZ',
-                metaPixelId: process.env.META_PIXEL_ID || '',
+                metaPixelId: process.env.META_PIXEL_ID || '3710521579103194',
                 googleTagManagerId: process.env.GTM_ID || '',
             }
         });
